@@ -3,9 +3,6 @@ name: PR Labeler
 on:
   workflow_call:
 
-permissions:
-  contents: read
-
 jobs:
   pr-labeler:
     permissions:
