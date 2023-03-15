@@ -23,6 +23,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
+      - name: add eslint
+        run: |
+          npm i -g eslint
       - run: yarn
       - name: eslint
         uses: reviewdog/action-eslint@v1
