@@ -11,6 +11,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: install axios
+      run: npm i -g axios
+
     - name: Get gem version
       id: gem_version
       run: |
