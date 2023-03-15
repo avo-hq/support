@@ -25,7 +25,8 @@ jobs:
       - uses: actions/checkout@v1
       - name: Check for eslint config
         run: |
-          if [ ! -f /path/to/file ]; then
+          pwd
+          if [ ! -f .eslintrc.json ]; then
             echo "File not found!"
             exit 0
           fi
