@@ -23,9 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-      - name: add eslint
+      - name: Check for eslint config
         run: |
-          npm i -g eslint
+          if [ ! -f /path/to/file ]; then
+            echo "File not found!"
+            exit 0
+          fi
       - run: yarn
       - name: eslint
         uses: reviewdog/action-eslint@v1
