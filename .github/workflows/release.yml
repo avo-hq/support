@@ -11,8 +11,20 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: install axios
-      run: npm i -g axios
+    - name: Get yarn cache directory path
+      id: production-yarn-cache-dir-path
+      run: echo "::set-output name=dir::$(yarn cache dir)"
+
+    - uses: actions/cache@v3
+      id: production-yarn-cache
+      with:
+        path: ${{ steps.production-yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-production-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-production-yarn-
+
+    - name: Yarn install
+      run: yarn install
 
     - name: Get gem version
       id: gem_version
