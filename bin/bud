@@ -1,0 +1,199 @@
+#!/usr/bin/env ruby
+
+require "dry/cli"
+require "active_support/core_ext/class/attribute"
+require "yaml"
+require "tty-command"
+require "fileutils"
+require "active_support/core_ext/string"
+require "bump"
+require "pathname"
+require_relative "support"
+
+module Buddy
+  VERSION = "0.0.1"
+
+  module CLI
+    module Commands
+      extend Dry::CLI::Registry
+
+      class Version < Dry::CLI::Command
+        desc "Print version"
+
+        def call(*)
+          puts VERSION
+        end
+      end
+
+      class Bump < Dry::CLI::Command
+        desc "Bump gem"
+
+        argument :level, desc: "major|minor|patch"
+        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+
+        def call(level: "patch", app: nil, **)
+          version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
+          cmd.run("bundle")
+          say message(version)
+        end
+      end
+
+      class Build < Dry::CLI::Command
+        desc "Build the gem"
+
+        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+
+        def call(app: nil, **)
+          FileUtils.mkdir_p "pkg"
+
+          remove_previous_gem
+
+          # We prepare these files so the cache does not get busted once the version is incremented in Gemfile.lock
+          add_v1_files
+
+          build_docker_image
+
+          copy_from_container
+        end
+      end
+
+      class Push < Dry::CLI::Command
+        desc "Push the gem"
+
+        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+
+        def call(app: nil, **)
+          `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{name}.gem`
+        end
+      end
+
+      class Commit < Dry::CLI::Command
+        desc "Commit the version change"
+
+        def call(app: nil, **)
+          `git add ./lib/#{name}/version.rb`
+          `git add ./Gemfile.lock`
+
+          tag = "v#{version}"
+
+          `git commit -m "#{message(version)}"`
+          `git tag -a -m "#{message(version)}" #{tag}`
+
+          `git push --follow-tags`
+        end
+      end
+
+      class Release < Dry::CLI::Command
+        desc "Release the gem"
+
+        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+
+        def call(app:, **)
+          # 1. Bump gem version
+          Bump.new.call
+          # 2. Build the gem
+          Build.new.call
+          # 3. Push to GitHub packages
+          Push.new.call
+          # 4. commit & upload tag to git
+          #    GitHub action will generate the release with release notes
+          Commit.new.call
+        end
+      end
+
+      class Setup < Dry::CLI::Command
+        desc "Setup all the repos"
+
+        def call(app: nil, **)
+          say "setupping, #{Dir.pwd.split("/").last}"
+
+          # Make sure we are running the command in the `gems` directory
+          current_dir = Dir.pwd.split("/").last
+          cwd = if current_dir == "support"
+            "#{Dir.pwd}/.."
+          else
+            Dir.pwd
+          end
+          repos = %w[
+            avo
+            prommy
+            avo_dashboards
+            avo_pro
+            avo_nested_resources
+            avo_menu
+            avo_authorization
+            avo_filters
+            avo_searchable_associations
+            avo_scopes
+          ]
+
+          Dir.chdir(cwd) do
+            repos.each do |repo|
+              say "Cloning #{repo}"
+
+              puts `git clone git@github.com:avo-hq/#{repo}.git`
+            end
+
+            repos.each do |repo|
+              Dir.chdir(repo) do
+                say "Running `bundle install` in #{repo}"
+                puts `bundle install`
+
+                if File.exist?("yarn.lock")
+                  say "Running `yarn install` in #{repo}"
+                  puts `yarn install`
+                end
+              end
+            end
+          end
+        end
+      end
+
+      chdir = lambda do |args|
+        if args[:app]
+          app_name = "avo_#{args[:app].gsub("avo_", "")}"
+          if Dir.exist?(app_name)
+            Dir.chdir(app_name)
+            say "Running command in #{app_name}"
+            # update the args to have the full gem name
+            # EX: if the user passes "--app dashboards", the app is transformed to "avo_dashboards"
+            args[:app] = app_name
+          elsif Pathname.new("../#{app_name}").directory?
+            # If the user runs the command from the support or prommy dirs, we should be able to continue to run the command
+            args[:app] = app_name
+            Dir.chdir(Pathname.new("../#{app_name}"))
+            say "Running command in #{Pathname.new("../#{app_name}").realpath}"
+          else
+            say "Failed to find that gem."
+            exit 0
+          end
+        end
+      end
+
+      check_for_gem = lambda do |args|
+        if Dir.glob("*.gemspec").empty?
+          say "Failed to find a gem in the current directory. Stopping execution."
+          exit 0
+        end
+      end
+
+      register "version", Version, aliases: ["v", "-v", "--version"]
+
+      common_comands = ["bump", "build", "push", "commit", "release"]
+
+      register "bump", Bump
+      register "build", Build
+      register "push", Push
+      register "commit", Commit
+      register "release", Release
+      register "setup", Setup
+
+      common_comands.each do |c|
+        before c, &chdir
+        before c, &check_for_gem
+      end
+    end
+  end
+end
+
+Dry::CLI.new(Buddy::CLI::Commands).call

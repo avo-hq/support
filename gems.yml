@@ -1,0 +1,7 @@
+gems:
+  avo: "./avo"
+  avo_filters: "./avo_filters"
+  avo_dashboards: "./avo_dashboards"
+  avo_authorization: "./avo_authorization"
+  avo_menu: "./avo_menu"
+  prommy: "./prommy"

@@ -1,0 +1,35 @@
+#!/usr/bin/env ruby
+
+def say(text)
+  puts "=> #{yellow(text)}"
+end
+
+def colorize(text, color_code)
+  "#{color_code}#{text}\e[0m"
+end
+
+def yellow(text)
+  colorize(text, "\e[33m")
+end
+
+puts "Hi 👋"
+
+# clone the support repo
+`mkdir gems`
+
+Dir.chdir "gems" do
+  puts `git clone https://github.com/avo-hq/support`
+
+  Dir.chdir "support" do
+    puts `bundle install`
+    puts `ln -s $PWD/bin/bud ~/bin/bud`
+    home_dir = "#{Dir.home}/bin"
+    say "We made a symlink for the `bud` helper in the home dir `#{home_dir}`"
+    say "Make sure `#{home_dir}` is loaded in the $PATH."
+    say ""
+    say "Testing `bud`"
+    puts `bud --version`
+    say "Running bud setup"
+    puts `bud setup`
+  end
+end
