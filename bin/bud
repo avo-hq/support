@@ -29,9 +29,9 @@ module Buddy
         desc "Bump gem"
 
         argument :level, desc: "major|minor|patch"
-        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(level: "patch", app: nil, **)
+        def call(level: "patch", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
           cmd.run("bundle")
           say message(version)
@@ -41,9 +41,9 @@ module Buddy
       class Build < Dry::CLI::Command
         desc "Build the gem"
 
-        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(app: nil, **)
+        def call(gem: nil, **)
           FileUtils.mkdir_p "pkg"
 
           remove_previous_gem
@@ -60,9 +60,9 @@ module Buddy
       class Push < Dry::CLI::Command
         desc "Push the gem"
 
-        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(app: nil, **)
+        def call(gem: nil, **)
           `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{name}.gem`
         end
       end
@@ -70,7 +70,7 @@ module Buddy
       class Commit < Dry::CLI::Command
         desc "Commit the version change"
 
-        def call(app: nil, **)
+        def call(gem: nil, **)
           `git add ./lib/#{name}/version.rb`
           `git add ./Gemfile.lock`
 
@@ -86,9 +86,9 @@ module Buddy
       class Release < Dry::CLI::Command
         desc "Release the gem"
 
-        option :app, aliases: ["-a"], required: false, desc: "The app you want to run the command on"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(app:, **)
+        def call(gem: nil, **)
           # 1. Bump gem version
           Bump.new.call
           # 2. Build the gem
@@ -101,11 +101,37 @@ module Buddy
         end
       end
 
+      class Run < Dry::CLI::Command
+        desc "Run a command"
+
+        argument :command, default: "bundle install", desc: "The command you'd like to run"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+        option :all, default: false, type: :boolean, desc: "Run the command in all gems."
+
+        def call(command: "bundle install", gem: nil, all: false, **)
+          if gem
+            say "Running '#{command}' in #{gem}"
+
+            cmd.run(command)
+          elsif all
+            say gems.inspect
+            gems.each do |gem, path|
+              say path
+              say "Running `#{command}` in #{path}"
+
+              cmd.run(command, chdir: path.to_s)
+            end
+          else
+            say "You must run this command with `--gem GEM_NAME` or `--all`"
+          end
+        end
+      end
+
       class Setup < Dry::CLI::Command
         desc "Setup all the repos"
 
-        def call(app: nil, **)
-          say "setupping, #{Dir.pwd.split("/").last}"
+        def call(gem: nil, **)
+          say "Starting the setup process."
 
           # Make sure we are running the command in the `gems` directory
           current_dir = Dir.pwd.split("/").last
@@ -140,8 +166,8 @@ module Buddy
 
             repos.each do |repo|
               Dir.chdir(repo) do
-                say "Running `bundle install` in #{repo}"
                 unless Dir.glob("*.gemspec").empty?
+                  say "Running `bundle install` in #{repo}"
                   puts `bundle install`
                 end
 
@@ -156,19 +182,19 @@ module Buddy
       end
 
       chdir = lambda do |args|
-        if args[:app]
-          app_name = "avo_#{args[:app].gsub("avo_", "")}"
-          if Dir.exist?(app_name)
-            Dir.chdir(app_name)
-            say "Running command in #{app_name}"
+        if args[:gem]
+          gem_name = "avo_#{args[:gem].gsub("avo_", "")}"
+          if Dir.exist?(gem_name)
+            Dir.chdir(gem_name)
+            say "Running command in #{gem_name}"
             # update the args to have the full gem name
-            # EX: if the user passes "--app dashboards", the app is transformed to "avo_dashboards"
-            args[:app] = app_name
-          elsif Pathname.new("../#{app_name}").directory?
+            # EX: if the user passes "--gem dashboards", the gem is transformed to "avo_dashboards"
+            args[:gem] = gem_name
+          elsif Pathname.new("../#{gem_name}").directory?
             # If the user runs the command from the support or prommy dirs, we should be able to continue to run the command
-            args[:app] = app_name
-            Dir.chdir(Pathname.new("../#{app_name}"))
-            say "Running command in #{Pathname.new("../#{app_name}").realpath}"
+            args[:gem] = gem_name
+            Dir.chdir(Pathname.new("../#{gem_name}"))
+            say "Running command in #{Pathname.new("../#{gem_name}").realpath}"
           else
             say "Failed to find that gem."
             exit 0
@@ -187,12 +213,15 @@ module Buddy
 
       common_comands = ["bump", "build", "push", "commit", "release"]
 
+      register "run", Run
       register "bump", Bump
       register "build", Build
       register "push", Push
       register "commit", Commit
       register "release", Release
       register "setup", Setup
+
+      before "run", &chdir
 
       common_comands.each do |c|
         before c, &chdir

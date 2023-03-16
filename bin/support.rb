@@ -87,3 +87,10 @@ end
 def image_id
   `docker create #{name}`.to_s.delete("\n")
 end
+
+def gems
+  yaml_path = Pathname.new("#{__dir__}/../gems.yml")
+  YAML.load_file(yaml_path)["gems"].each do |gem, path|
+    [gem, File.expand_path(path, Dir.pwd)]
+  end.to_h
+end
