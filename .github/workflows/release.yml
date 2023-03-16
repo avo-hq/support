@@ -18,7 +18,6 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
           });
-          console.log('this->', releases, releases.find((r) => r.draft))
           return releases.find((r) => r.draft)?.body || "No draft release found."
 
     - name: Create Release
