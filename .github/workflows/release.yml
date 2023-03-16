@@ -5,22 +5,21 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
 
     - name: Get release notes
       uses: actions/github-script@v6
       id: get_release_notes
-        with:
-          script: |
-            const {data: releases} = await github.rest.repos.listReleases({
-              owner,
-              repo,
-            });
-            return releases.find((r) => r.draft)?.draft || ""
+      with:
+        script: |
+          const {data: releases} = await github.rest.repos.listReleases({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+          });
+          console.log('this->', releases, releases.find((r) => r.draft))
+          return releases.find((r) => r.draft)?.body || "No draft release found."
 
     - name: Create Release
       id: create_release
