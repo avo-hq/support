@@ -140,18 +140,7 @@ module Buddy
           else
             Dir.pwd
           end
-          repos = %w[
-            avo
-            prommy
-            avo_dashboards
-            avo_pro
-            avo_nested_resources
-            avo_menu
-            avo_authorization
-            avo_filters
-            avo_searchable_associations
-            avo_scopes
-          ]
+          repos = gems.keys + %w[prommy]
 
           Dir.chdir(cwd) do
             repos.each do |repo|
@@ -183,8 +172,8 @@ module Buddy
 
       chdir = lambda do |args|
         if args[:gem]
-          gem_name = "avo_#{args[:gem].gsub("avo_", "")}"
-          gem_name = "avo" if gem_name == "avo_avo"
+          gem_name = (args[:gem] == "avo") ? args[:gem] : "avo_#{args[:gem].gsub("avo_", "")}"
+
           if Dir.exist?(gem_name)
             Dir.chdir(gem_name)
             say "Running command in #{gem_name}"

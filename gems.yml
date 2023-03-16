@@ -5,3 +5,7 @@ gems:
   avo_authorization: "./avo_authorization"
   avo_menu: "./avo_menu"
   prommy: "./prommy"
+  avo_pro: "./avo_pro"
+  avo_nested_resources: "./avo_nested_resources"
+  avo_searchable_associations: "./avo_searchable_associations"
+  avo_scopes: "./avo_scopes"
