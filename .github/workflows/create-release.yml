@@ -1,4 +1,4 @@
-name: Build, Generate Ruby Gem and Release
+name: Create release
 
 on:
   workflow_call:
