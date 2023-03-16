@@ -33,7 +33,8 @@ This script will clone the `avo` repo, not `avo-3`. You need to run these comman
 
 ```bash
 rm -rf avo
-git clone https://github.com/avo-hq/avo-r avo
+git clone git@github.com:avo-hq/avo-3.git avo
+bud run yarn -g avo
 ```
 
 Next, you can go into `prommy` and run `bin/dev` to start the app.
@@ -95,3 +96,9 @@ It basically does a `git clone`, `bundle install`, and `yarn install` on each on
 ## Working with the multi repo seetup
 
 For each new repository go to settings and set "Automatically delete head branches" to `true`.
+
+This is a good setting to remove the merged git branches.
+
+```bash
+git config --global fetch.prune true
+```
