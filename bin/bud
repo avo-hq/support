@@ -184,6 +184,7 @@ module Buddy
       chdir = lambda do |args|
         if args[:gem]
           gem_name = "avo_#{args[:gem].gsub("avo_", "")}"
+          gem_name = "avo" if gem_name == "avo_avo"
           if Dir.exist?(gem_name)
             Dir.chdir(gem_name)
             say "Running command in #{gem_name}"
