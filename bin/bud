@@ -129,15 +129,21 @@ module Buddy
 
           Dir.chdir(cwd) do
             repos.each do |repo|
-              say "Cloning #{repo}"
+              if Dir.exist?(repo)
+                say "Skipping clone for #{repo}"
+              else
+                say "Cloning #{repo}"
 
-              puts `git clone git@github.com:avo-hq/#{repo}.git`
+                puts `git clone git@github.com:avo-hq/#{repo}.git`
+              end
             end
 
             repos.each do |repo|
               Dir.chdir(repo) do
                 say "Running `bundle install` in #{repo}"
-                puts `bundle install`
+                unless Dir.glob("*.gemspec").empty?
+                  puts `bundle install`
+                end
 
                 if File.exist?("yarn.lock")
                   say "Running `yarn install` in #{repo}"

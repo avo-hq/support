@@ -12,24 +12,19 @@ def yellow(text)
   colorize(text, "\e[33m")
 end
 
-puts "Hi 👋"
+say "Hi 👋"
 
-# clone the support repo
-`mkdir gems`
+puts `git clone https://github.com/avo-hq/support`
 
-Dir.chdir "gems" do
-  puts `git clone https://github.com/avo-hq/support`
-
-  Dir.chdir "support" do
-    puts `bundle install`
-    puts `ln -s $PWD/bin/bud ~/bin/bud`
-    home_dir = "#{Dir.home}/bin"
-    say "We made a symlink for the `bud` helper in the home dir `#{home_dir}`"
-    say "Make sure `#{home_dir}` is loaded in the $PATH."
-    say ""
-    say "Testing `bud`"
-    puts `bud --version`
-    say "Running bud setup"
-    puts `bud setup`
-  end
+Dir.chdir "support" do
+  puts `bundle install`
+  puts `ln -s $PWD/bin/bud ~/bin/bud`
+  home_dir = "#{Dir.home}/bin"
+  say "We made a symlink for the `bud` helper in the home dir `#{home_dir}`"
+  say "Make sure `#{home_dir}` is loaded in the $PATH."
+  say ""
+  say "Testing `bud`"
+  puts `bud --version`
+  say "Running bud setup"
+  puts `bud setup`
 end
