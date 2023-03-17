@@ -2,6 +2,8 @@
 
 This repo is going to help us out to set up and continue working with Avo's multi-repo setup.
 
+See [this](https://avo-hq.notion.site/Avo-Dev-wiki-1bb5cfb19ef1444daee277a57d82d3b8) document to get started with Avo.
+
 ```bash
 ln -s $PWD/support/bin/bud ~/bin/bud
 ```
