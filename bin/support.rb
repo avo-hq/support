@@ -65,14 +65,14 @@ def remove_previous_gem
 end
 
 def ensure_base_docker_image_built(progress: "auto")
-  `docker build -t avo_base -f ./../.github/docker/Dockerfile.base . --progress #{progress} -q`
+  `docker build -t avo_base -f ./../support/docker/Dockerfile.base . --progress #{progress} -q`
   say "Base Docker image built"
 end
 
 def build_docker_image(progress: "auto")
   ensure_base_docker_image_built
   say "Building Docker image"
-  cmd = "docker build -t #{name} -f ./../.github/docker/Dockerfile . --progress #{progress} --build-arg NAME=#{name}"
+  cmd = "docker build -t #{name} -f ./../support/docker/Dockerfile . --progress #{progress} --build-arg NAME=#{name}"
   `#{cmd}`
   say "Docker image built"
 end
