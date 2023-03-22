@@ -29,6 +29,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
+    - name: "Clone Avo"
+      # This need to be changed to avo repo after the launch
+      run: git clone git@github.com:avo-hq/avo-3.git ./../avo
+
     - name: Bundle install
       run: |
         bundle config path vendor/bundle
