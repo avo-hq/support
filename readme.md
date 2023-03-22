@@ -104,3 +104,22 @@ This is a good setting to remove the merged git branches.
 ```bash
 git config --global fetch.prune true
 ```
+
+## Tailwind CSS
+
+(WIP)
+Tailwind will work a bit differently from Avo 2. For the free repo it will compile using a list of common files and directories for Avo engines...
+
+```js
+// Common files and dirs for Avo engines.
+const paths = (name, path) => ([
+  `${path}/app/helpers/**/*.rb`,
+  `${path}/app/views/**/*.erb`,
+  `${path}/app/javascript/**/*.js`,
+  `${path}/app/components/**/*.erb`,
+  `${path}/app/components/**/*.rb`,
+  `${path}/app/controllers/**/*.rb`,
+  `${path}/app/javascript/**/*.js`,
+  `${path}/lib/${name}/**/*.rb`,
+])
+```

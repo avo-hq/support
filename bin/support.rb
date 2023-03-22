@@ -2,6 +2,10 @@ def say(text)
   puts "=> #{yellow(text)}"
 end
 
+def yell(text)
+  puts "=> #{red(text)}"
+end
+
 def colorize(text, color_code)
   "#{color_code}#{text}\e[0m"
 end
@@ -62,26 +66,6 @@ end
 
 def remove_previous_gem
   `rm -f #{destination_path}`
-end
-
-def ensure_base_docker_image_built(progress: "auto")
-  `docker build -t avo_base -f ./../support/docker/Dockerfile.base . --progress #{progress} -q`
-  say "Base Docker image built"
-end
-
-def build_docker_image(progress: "auto")
-  ensure_base_docker_image_built
-  say "Building Docker image"
-  cmd = "docker build -t #{name} -f ./../support/docker/Dockerfile . --progress #{progress} --build-arg NAME=#{name}"
-  `#{cmd}`
-  say "Docker image built"
-end
-
-def copy_from_container(src: "/#{name}/pkg/#{name}-#{version}.gem", dest: destination_path)
-  return unless src.present? && dest.present?
-
-  `docker cp #{image_id}:#{src} #{dest}`
-  say "Copied gem from docker image to #{dest}"
 end
 
 def image_id

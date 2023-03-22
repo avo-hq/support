@@ -10,6 +10,8 @@ require "bump"
 require "pathname"
 require_relative "support"
 
+DOCKER_PROGRESS = "plain" # auto|plain
+
 module Buddy
   VERSION = "0.0.1"
 
@@ -17,7 +19,22 @@ module Buddy
     module Commands
       extend Dry::CLI::Registry
 
-      class Version < Dry::CLI::Command
+      class BaseCommand < Dry::CLI::Command
+        def run(command)
+          result= cmd.run(command)
+          halt if result.failed?
+        rescue TTY::Command::ExitError => e
+          halt
+        end
+
+        def halt(message: nil)
+          message ||= "#{self.class} failed."
+          yell message
+          exit
+        end
+      end
+
+      class Version < BaseCommand
         desc "Print version"
 
         def call(*)
@@ -25,7 +42,7 @@ module Buddy
         end
       end
 
-      class Bump < Dry::CLI::Command
+      class Bump < BaseCommand
         desc "Bump gem"
 
         argument :level, desc: "major|minor|patch"
@@ -33,12 +50,14 @@ module Buddy
 
         def call(level: "patch", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
-          cmd.run("bundle")
+
+          run("bundle")
+
           say message(version)
         end
       end
 
-      class Build < Dry::CLI::Command
+      class Build < BaseCommand
         desc "Build the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
@@ -51,13 +70,25 @@ module Buddy
           # We prepare these files so the cache does not get busted once the version is incremented in Gemfile.lock
           add_v1_files
 
-          build_docker_image
+          # Build the base image
+          run("docker build -t avo_base -f ./../support/docker/Dockerfile.base ./../avo --progress #{DOCKER_PROGRESS} -q")
+          say "Base Docker image built"
+
+          # Build the build image
+          say "Building Docker image"
+          run("docker build -t #{name} -f ./../support/docker/Dockerfile . --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name}")
+          say "Docker image built"
+
+          src = "/#{name}/pkg/#{name}-#{version}.gem"
+
+          run "docker cp #{image_id}:#{src} #{destination_path}"
+          say "Copied gem from docker image to #{destination_path}"
 
           copy_from_container
         end
       end
 
-      class Push < Dry::CLI::Command
+      class Push < BaseCommand
         desc "Push the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
@@ -67,7 +98,7 @@ module Buddy
         end
       end
 
-      class Commit < Dry::CLI::Command
+      class Commit < BaseCommand
         desc "Commit the version change"
 
         def call(gem: nil, **)
@@ -83,7 +114,7 @@ module Buddy
         end
       end
 
-      class Release < Dry::CLI::Command
+      class Release < BaseCommand
         desc "Release the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
@@ -101,7 +132,7 @@ module Buddy
         end
       end
 
-      class Run < Dry::CLI::Command
+      class Run < BaseCommand
         desc "Run a command"
 
         argument :command, default: "bundle install", desc: "The command you'd like to run"
@@ -127,7 +158,7 @@ module Buddy
         end
       end
 
-      class Setup < Dry::CLI::Command
+      class Setup < BaseCommand
         desc "Setup all the repos"
 
         def call(gem: nil, **)

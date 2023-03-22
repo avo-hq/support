@@ -8,16 +8,18 @@ WORKDIR /${NAME}/
 RUN mkdir /${NAME}/lib
 RUN mkdir /${NAME}/lib/${NAME}
 
+ENV BUNDLE_WITHOUT=development:test
+
 # Cache the bundle install command with a fake version
 COPY ./tmp/Gemfile_v1.lock /${NAME}/Gemfile.lock
 COPY ./tmp/version_v1.rb /${NAME}/lib/${NAME}/version.rb
 
-COPY Gemfile /${NAME}/Gemfile
-COPY Rakefile /${NAME}/
-COPY ${NAME}.gemspec /${NAME}/
+COPY ./Gemfile /${NAME}/Gemfile
+COPY ./Rakefile /${NAME}/
+COPY ./${NAME}.gemspec /${NAME}/
 COPY ./lib/${NAME}.rb /${NAME}/lib/${NAME}.rb
-COPY package.json /${NAME}/
-COPY yarn.lock /${NAME}/
+COPY ./package.json /${NAME}/
+COPY ./yarn.lock /${NAME}/
 
 RUN bundle install --jobs 4 --retry 3
 RUN yarn install

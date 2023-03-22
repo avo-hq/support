@@ -1,4 +1,4 @@
-FROM ruby:3.1.0
+FROM ruby:3.2.1
 
 RUN apt-get update -qq && apt-get install -yqq build-essential apt-transport-https apt-utils
 
@@ -23,3 +23,5 @@ RUN gem install bundler -v 2.3.5
 ENV RAILS_ENV=production
 ENV NODE_ENV=production
 ENV BUNDLE_WITHOUT=development:test
+
+COPY . /avo
