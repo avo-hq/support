@@ -10,7 +10,7 @@ require "bump"
 require "pathname"
 require_relative "support"
 
-DOCKER_PROGRESS = "plain" # auto|plain
+DOCKER_PROGRESS = "auto" # auto|plain
 
 module Buddy
   VERSION = "0.0.1"
