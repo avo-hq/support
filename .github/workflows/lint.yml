@@ -29,7 +29,7 @@ jobs:
             echo "File not found!"
             exit 0
           fi
-      - run: yarn
+      - run: yarn add global eslint@6.8.0 eslint-plugin-sort-imports-es6-autofix@^0.5.0 eslint-config-airbnb@^18.1.0 eslint-config-airbnb-base@^14.1.0 babel-eslint@^10.1.0 eslint-plugin-import@^2.20.2
       - name: eslint
         uses: reviewdog/action-eslint@v1
         with:
