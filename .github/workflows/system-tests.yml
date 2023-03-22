@@ -7,7 +7,6 @@ env:
   RAILS_ENV: test
   BUNDLE_PATH_RELATIVE_TO_CWD: true
   AVO_LICENSE_KEY: license_123
-  BUNDLE_RUBYGEMS__PKG__GITHUB__COM: adrianthedev:${{secrets.GH_REGISTRY_AVO_FILTERS_TOKEN}}
 
 jobs:
   system_specs:
