@@ -2,6 +2,9 @@ name: Feature Tests
 
 on:
   workflow_call:
+    secrets:
+      AVO_CLONE_KEY:
+        required: true
 
 env:
   RAILS_ENV: test
