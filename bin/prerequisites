@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
-echo "\e[32m===== Loading prerequisites =====\e[0m"
-export AVO_ENGINES=$(../support/bin/gems)
-echo "\e[32m=== Found the following Avo engines ===\n$(echo $AVO_ENGINES | tr ',' '\n')\n\e[0m"
+# echo "\e[32m===== Loading prerequisites =====\e[0m"
+# export AVO_ENGINES=$(../support/bin/gems)
+# echo "\e[32m=== Found the following Avo engines ===\n$(echo $AVO_ENGINES | tr ',' '\n')\n\e[0m"
 
 export WEB_START_COMMAND='bin/rails server -p 3030'
 
