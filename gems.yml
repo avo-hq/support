@@ -2,7 +2,6 @@ gems:
   avo: "./avo"
   avo_advanced: "./avo_advanced"
   avo_pro: "./avo_pro"
-  avo_authorization: "./avo_authorization"
   avo_filters: "./avo_filters"
   avo_dashboards: "./avo_dashboards"
   avo_menu: "./avo_menu"
