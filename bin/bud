@@ -51,6 +51,8 @@ module Buddy
         def call(level: "patch", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
 
+          add_v1_files
+
           run("bundle")
 
           say message(version)

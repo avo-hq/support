@@ -43,21 +43,17 @@ def cmd
 end
 
 def add_v1_files
-  if File.exist?("./tmp/Gemfile_v1.lock") && File.exist?("./tmp/version_v1.rb")
-    say "Cache for the Docker build prepared"
-  else
-    say "Preparing cache for the Docker build"
-    FileUtils.mkdir_p "tmp"
-    FileUtils.copy "./Gemfile.lock", "./tmp/Gemfile_v1.lock"
-    change_in_file "./tmp/Gemfile_v1.lock", "#{name} (#{version})", "#{name} (1.0.0)"
-    FileUtils.copy "./lib/#{name}/version.rb", "./tmp/version_v1.rb"
-    change_in_file "./tmp/version_v1.rb", "VERSION = \"#{version}\"", "VERSION = \"1.0.0\""
-  end
+  say "Preparing cache for the Docker build"
+  FileUtils.mkdir_p "tmp"
+  FileUtils.copy "./Gemfile.lock", "./tmp/Gemfile_v1.lock"
+  change_in_file "./tmp/Gemfile_v1.lock", /.*#{name} \(.*/, "      #{name} (1.0.0)"
+  FileUtils.copy "./lib/#{name}/version.rb", "./tmp/version_v1.rb"
+  change_in_file "./tmp/version_v1.rb", /.*VERSION = .*/, "  VERSION = \"1.0.0\""
 end
 
-def change_in_file(file, text_to_replace, text_to_put_in_place)
+def change_in_file(file, regex, text_to_put_in_place)
   text = File.read file
-  File.open(file, "w+") { |f| f << text.gsub(text_to_replace, text_to_put_in_place) }
+  File.open(file, "w+") { |f| f << text.gsub(/#{regex}/, text_to_put_in_place) }
 end
 
 def destination_path
