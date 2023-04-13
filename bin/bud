@@ -83,8 +83,6 @@ module Buddy
 
           run "docker cp #{image_id}:#{src} #{destination_path}"
           say "Copied gem from docker image to #{destination_path}"
-
-          copy_from_container
         end
       end
 
@@ -110,7 +108,7 @@ module Buddy
           `git commit -m "#{message(version)}"`
           `git tag -a -m "#{message(version)}" #{tag}`
 
-          `git push --follow-tags`
+          `git push origin main --follow-tags`
         end
       end
 
@@ -118,10 +116,13 @@ module Buddy
         desc "Release the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+        option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
 
-        def call(gem: nil, **)
+        def call(gem: nil, skip_bump: false, **)
           # 1. Bump gem version
-          Bump.new.call
+          unless skip_bump
+            Bump.new.call
+          end
           # 2. Build the gem
           Build.new.call
           # 3. Push to GitHub packages
