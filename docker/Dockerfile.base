@@ -4,6 +4,12 @@ RUN apt-get update -qq && apt-get install -yqq build-essential apt-transport-htt
 
 # Cache nokogiri
 RUN apt-get install -yqq libxml2-dev libxslt1-dev build-essential patch ruby-dev zlib1g-dev liblzma-dev
+# RUN gem sources -a https://github.com
+# RUN gem debase -s https://github.com/ruby-debug/debase.git
+# RUN git clone --branch v0.2.5.beta2 https://github.com/ruby-debug/debase.git
+# RUN cd debase && gem build --with-vm_insnhelper-dir
+# RUN gem install debase ./debase/debase-0.2.5.beta2.gem
+# RUN gem install nokogiri selenium-webdriver ffi ruby-debug-ide tilt debase
 RUN gem install nokogiri selenium-webdriver ffi ruby-debug-ide tilt
 
 # node

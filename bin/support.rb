@@ -46,7 +46,7 @@ def add_v1_files
   say "Preparing cache for the Docker build"
   FileUtils.mkdir_p "tmp"
   FileUtils.copy "./Gemfile.lock", "./tmp/Gemfile_v1.lock"
-  change_in_file "./tmp/Gemfile_v1.lock", /.*#{name} \(.*/, "      #{name} (1.0.0)"
+  change_in_file "./tmp/Gemfile_v1.lock", /.*#{name} \(.*/, "    #{name} (1.0.0)"
   FileUtils.copy "./lib/#{name}/version.rb", "./tmp/version_v1.rb"
   change_in_file "./tmp/version_v1.rb", /.*VERSION = .*/, "  VERSION = \"1.0.0\""
 end
