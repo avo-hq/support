@@ -39,13 +39,13 @@ git clone git@github.com:avo-hq/avo-3.git avo
 bud run yarn -g avo
 ```
 
-Next, you can go into `prommy` and run `bin/dev` to start the app.
+Next, you can go into `testy` and run `bin/dev` to start the app.
 
 ## How to use the `bud` helper
 
 ### Overview
 
-Most commands can be run inside a gem directory (`avo`, `avo_filters`, etc.) and it will know to run it on that gem, or from the `prommy` app with the `--gem` (or `-g`) argument and it will `cd` into the proper directory.
+Most commands can be run inside a gem directory (`avo`, `avo_filters`, etc.) and it will know to run it on that gem, or from the `testy` app with the `--gem` (or `-g`) argument and it will `cd` into the proper directory.
 Ex: `bud bump -g avo_filters`, `bud release -g dashboards`.
 
 You can leave out the `avo_` prefix and it will add it.

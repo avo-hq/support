@@ -180,7 +180,7 @@ module Buddy
           else
             Dir.pwd
           end
-          repos = gems.keys + %w[prommy]
+          repos = gems.keys + %w[testy]
 
           Dir.chdir(cwd) do
             repos.each do |repo|
@@ -221,7 +221,7 @@ module Buddy
             # EX: if the user passes "--gem dashboards", the gem is transformed to "avo_dashboards"
             args[:gem] = gem_name
           elsif Pathname.new("../#{gem_name}").directory?
-            # If the user runs the command from the support or prommy dirs, we should be able to continue to run the command
+            # If the user runs the command from the support or testy dirs, we should be able to continue to run the command
             args[:gem] = gem_name
             Dir.chdir(Pathname.new("../#{gem_name}"))
             say "Running command in #{Pathname.new("../#{gem_name}").realpath}"

@@ -42,7 +42,7 @@ RUN bundle config set --local without 'development:test'
 # Copy the files
 COPY ./avo /${NAME}
 
-COPY ./prommy /prommy
+COPY ./testy /testy
 COPY ./avo_pro /avo_pro
 COPY ./avo_advanced /avo_advanced
 COPY ./avo_dashboards /avo_dashboards
