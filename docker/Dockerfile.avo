@@ -2,32 +2,28 @@ FROM avo_base
 
 ARG NAME
 
-# Move pluggy to root
-RUN cp -r /avo/pluggy /pluggy
-# Remove /avo base directory if we build Avo
-RUN rm -rf /avo
+WORKDIR /avo/
 
-WORKDIR /${NAME}/
-
-# Move pluggy to Avo
-RUN cp -r /pluggy /avo/pluggy
+# # Move pluggy to Avo
+# RUN cp -r /pluggy /avo/pluggy
 
 # Create required directories
-RUN mkdir /${NAME}/lib
-RUN mkdir /${NAME}/lib/${NAME}
+RUN mkdir /avo/lib
+RUN mkdir /avo/lib/avo
 
 ENV BUNDLE_WITHOUT=development:test
 
 # Cache the bundle install command with a fake version
-COPY ./avo/tmp/Gemfile_v1.lock /${NAME}/Gemfile.lock
-COPY ./avo/tmp/version_v1.rb /${NAME}/lib/${NAME}/version.rb
+COPY ./avo/tmp/Gemfile_v1.lock /avo/Gemfile.lock
+COPY ./avo/tmp/version_v1.rb /avo/lib/avo/version.rb
 
-COPY ./avo/Gemfile /${NAME}/Gemfile
-COPY ./avo/Rakefile /${NAME}/
-COPY ./avo/${NAME}.gemspec /${NAME}/
-COPY ./avo/lib/${NAME}.rb /${NAME}/lib/${NAME}.rb
-COPY ./avo/package.json /${NAME}/
-COPY ./avo/yarn.lock /${NAME}/
+COPY ./avo/Gemfile /avo/Gemfile
+COPY ./avo/Rakefile /avo/
+COPY ./avo/avo.gemspec /avo/
+COPY ./avo/lib/avo.rb /avo/lib/avo.rb
+COPY ./avo/package.json /avo/
+COPY ./avo/yarn.lock /avo/
+COPY ./avo/pluggy /avo/pluggy
 
 # RUN ls -la /avo
 
@@ -35,12 +31,12 @@ RUN bundle install --jobs 4 --retry 3
 RUN yarn install
 
 # Re-run bundle install with the appropriate version number
-COPY ./avo/lib/${NAME}/version.rb /${NAME}/lib/${NAME}/version.rb
+COPY ./avo/lib/avo/version.rb /avo/lib/avo/version.rb
 # Remove gems used to test things locally
 RUN bundle config set --local without 'development:test'
 
 # Copy the files
-COPY ./avo /${NAME}
+COPY ./avo /avo
 
 COPY ./testy /testy
 COPY ./avo_pro /avo_pro
@@ -60,7 +56,7 @@ RUN yarn check --integrity
 ENV AVO_ENGINES=avo:/avo,avo_advanced:/avo_advanced,avo_pro:/avo_pro,avo_filters:/avo_filters,avo_dashboards:/avo_dashboards,avo_menu:/avo_menu,avo_nested_resources:/avo_nested_resources
 
 # Build assets
-RUN yarn build
+RUN yarn prod:build
 
 # Build gem
 RUN bundle exec rails build

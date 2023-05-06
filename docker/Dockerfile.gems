@@ -1,0 +1,3 @@
+FROM avo_base
+
+COPY . /avo

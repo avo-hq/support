@@ -1,4 +1,4 @@
-FROM avo_base
+FROM avo_gems
 
 ARG NAME
 
