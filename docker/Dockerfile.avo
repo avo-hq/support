@@ -39,11 +39,11 @@ RUN bundle config set --local without 'development:test'
 COPY ./avo /avo
 
 COPY ./testy /testy
-COPY ./avo_pro /avo_pro
-COPY ./avo_advanced /avo_advanced
-COPY ./avo_dashboards /avo_dashboards
-COPY ./avo_filters /avo_filters
-COPY ./avo_menu /avo_menu
+COPY ./avo-pro /avo-pro
+COPY ./avo-advanced /avo-advanced
+COPY ./avo-dashboards /avo-dashboards
+COPY ./avo-dynamic_filters /avo-dynamic_filters
+COPY ./avo-menu /avo-menu
 COPY ./avo_nested_resources /avo_nested_resources
 COPY ./support /support
 RUN ls -la /avo_dashboards
@@ -53,7 +53,7 @@ RUN bundle install --jobs 4 --retry 3
 RUN yarn install
 RUN yarn check --integrity
 
-ENV AVO_ENGINES=avo:/avo,avo_advanced:/avo_advanced,avo_pro:/avo_pro,avo_filters:/avo_filters,avo_dashboards:/avo_dashboards,avo_menu:/avo_menu,avo_nested_resources:/avo_nested_resources
+ENV AVO_ENGINES=avo:/avo,avo-advanced:/avo-advanced,avo-pro:/avo-pro,avo-dynamic_filters:/avo-dynamic_filters,avo-dashboards:/avo-dashboards,avo-menu:/avo-menu,avo_nested_resources:/avo_nested_resources
 
 # Build assets
 RUN yarn prod:build
