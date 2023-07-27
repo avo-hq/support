@@ -5,6 +5,8 @@ on:
     secrets:
       AVO_CLONE_KEY:
         required: true
+      AVO_GEM_TOKEN:
+        required: true
 
 env:
   RAILS_ENV: test
@@ -36,6 +38,9 @@ jobs:
       with:
         bundler: default
         ruby-version: 3.2.0
+
+    - name: Add AVO_GEM_TOKEN
+      run: bundle config set --global https://packager.dev/avo-hq-beta/ ${{secrets.AVO_GEM_TOKEN}}
 
     - uses: actions/cache@v3
       with:

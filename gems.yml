@@ -1,8 +1,8 @@
 gems:
   avo: "./avo"
-  avo_advanced: "./avo_advanced"
-  avo_pro: "./avo_pro"
-  avo_filters: "./avo_filters"
-  avo_dashboards: "./avo_dashboards"
-  avo_menu: "./avo_menu"
+  avo-advanced: "./avo-advanced"
+  avo-pro: "./avo-pro"
+  avo-dynamic_filters: "./avo-dynamic_filters"
+  avo-dashboards: "./avo-dashboards"
+  avo-menu: "./avo-menu"
   testy: "./testy"
