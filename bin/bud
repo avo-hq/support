@@ -8,6 +8,7 @@ require "fileutils"
 require "active_support/core_ext/string"
 require "bump"
 require "pathname"
+require "rubygems"
 require_relative "support"
 
 DOCKER_PROGRESS = "auto" # auto|plain
@@ -23,6 +24,7 @@ module Buddy
         def run(command)
           result = cmd.run(command)
           halt if result.failed?
+          result
         rescue TTY::Command::ExitError => e
           halt
         end
@@ -82,14 +84,12 @@ module Buddy
           dockerfile = (name == "avo") ? "Dockerfile.avo" : "Dockerfile"
           build_path = (name == "avo") ? "../." : "."
 
-          # puts ["dockerfile, build_path->", dockerfile, build_path].inspect
-
           # Build the build image
           say "Building Docker image"
-          run("docker build -t #{name} -f ./../support/docker/#{dockerfile} #{build_path} --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name}")
+          run("docker build -t #{name} -f ./../support/docker/#{dockerfile} #{build_path} --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name} --build-arg GEMSPEC_NAME=#{gemspec_name} --build-arg BUNDLER_TOKEN=#{bundler_token}")
           say "Docker image built"
 
-          src = "/#{name}/pkg/#{name}-#{version}.gem"
+          src = "/#{name}/pkg/#{gemspec_name}-#{version}.gem"
 
           run "docker cp #{image_id}:#{src} #{destination_path}"
           say "Copied gem from docker image to #{destination_path}"
@@ -102,7 +102,7 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(gem: nil, **)
-          `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{name}.gem`
+          `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
         end
       end
 
@@ -110,7 +110,7 @@ module Buddy
         desc "Commit the version change"
 
         def call(gem: nil, **)
-          `git add ./lib/#{name}/version.rb`
+          `git add ./lib/avo/#{name}/version.rb`
           `git add ./Gemfile.lock`
 
           tag = "v#{version}"

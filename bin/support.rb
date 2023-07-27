@@ -22,16 +22,24 @@ def green(text)
   colorize(text, "\e[32m")
 end
 
-def package_namespace
-  File.basename(Dir.pwd).camelize
+def gemspec_path
+  Dir["#{Dir.pwd}/*.gemspec"].first
+end
+
+def gemspec
+  Gem::Specification.load(gemspec_path)
 end
 
 def version
-  @version ||= `bundle exec rails runner "puts #{package_namespace}::VERSION"`.delete("\n")
+  @version ||= gemspec.version.to_s
+end
+
+def gemspec_name
+  gemspec.name
 end
 
 def name
-  package_namespace.to_s.underscore
+  gemspec_name.gsub("avo-", "")
 end
 
 def message(version = nil)
@@ -47,7 +55,8 @@ def add_v1_files
   FileUtils.mkdir_p "tmp"
   FileUtils.copy "./Gemfile.lock", "./tmp/Gemfile_v1.lock"
   change_in_file "./tmp/Gemfile_v1.lock", /.*#{name} \(.*/, "    #{name} (1.0.0)"
-  FileUtils.copy "./lib/#{name}/version.rb", "./tmp/version_v1.rb"
+  version_file_path = gemspec.files.find { |file| file.ends_with? "/version.rb" }
+  FileUtils.copy version_file_path, "./tmp/version_v1.rb"
   change_in_file "./tmp/version_v1.rb", /.*VERSION = .*/, "  VERSION = \"1.0.0\""
 end
 
@@ -57,7 +66,7 @@ def change_in_file(file, regex, text_to_put_in_place)
 end
 
 def destination_path
-  "./pkg/#{name}.gem"
+  "./pkg/#{gemspec_name}.gem"
 end
 
 def remove_previous_gem
@@ -66,6 +75,10 @@ end
 
 def image_id
   `docker create #{name}`.to_s.delete("\n")
+end
+
+def bundler_token
+  @token ||= `bundle config get https://packager.dev/avo-hq-beta`.match(/^.*: "(.*)"$/).captures.first
 end
 
 def gems
