@@ -110,7 +110,11 @@ module Buddy
         desc "Commit the version change"
 
         def call(gem: nil, **)
-          `git add ./lib/avo/#{name}/version.rb`
+          if name == "avo"
+            `git add ./lib/avo/version.rb`
+          else
+            `git add ./lib/avo/#{name}/version.rb`
+          end
           `git add ./Gemfile.lock`
 
           tag = "v#{version}"
