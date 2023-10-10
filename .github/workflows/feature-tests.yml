@@ -68,6 +68,8 @@ jobs:
     - name: Compile Avo assets (development mode)
       run: |
         cd ../avo
+        bundle install
+        bin/rails avo:sym_link
         yarn install
         yarn build
 
