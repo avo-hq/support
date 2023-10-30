@@ -35,6 +35,7 @@ COPY ./avo/lib/avo/version.rb /avo/lib/avo/version.rb
 
 # Copy the files
 COPY ./avo /avo
+RUN rm -rf ./app/assets/builds
 
 # COPY ./testy /testy
 COPY ./avo-pro /avo-pro
@@ -42,14 +43,11 @@ COPY ./avo-advanced /avo-advanced
 COPY ./avo-dashboards /avo-dashboards
 COPY ./avo-dynamic_filters /avo-dynamic_filters
 COPY ./avo-menu /avo-menu
-COPY ./avo_nested_resources /avo_nested_resources
 
 # Run the install again
 RUN bundle install --jobs 4 --retry 3
 RUN yarn install
 RUN yarn check --integrity
-
-ENV AVO_ENGINES=avo:/avo,avo-advanced:/avo-advanced,avo-pro:/avo-pro,avo-dynamic_filters:/avo-dynamic_filters,avo-dashboards:/avo-dashboards,avo-menu:/avo-menu,avo_nested_resources:/avo_nested_resources
 
 # Build assets
 RUN bundle exec rails avo:sym_link
