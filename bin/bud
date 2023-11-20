@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'bundler/setup'
 require "dry/cli"
 require "active_support/core_ext/class/attribute"
 require "yaml"
@@ -102,7 +103,11 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(gem: nil, **)
-          `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
+          if gemspec_name == "avo"
+            `gem push --host https://rubygems.org/ ./pkg/#{gemspec_name}.gem`
+          else
+            `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
+          end
         end
       end
 
@@ -134,7 +139,10 @@ module Buddy
 
         def call(gem: nil, skip_bump: false, **)
           # 1. Bump gem version
-          unless skip_bump
+          if skip_bump
+            # Run bundle to increment the version number in Gemfile.lock
+            run("bundle")
+          else
             Bump.new.call
           end
           # 2. Build the gem
@@ -218,13 +226,13 @@ module Buddy
 
       chdir = lambda do |args|
         if args[:gem]
-          gem_name = (args[:gem] == "avo") ? args[:gem] : "avo_#{args[:gem].gsub("avo_", "")}"
+          gem_name = (args[:gem] == "avo") ? args[:gem] : "avo-#{args[:gem].gsub("avo-", "")}"
 
           if Dir.exist?(gem_name)
             Dir.chdir(gem_name)
             say "Running command in #{gem_name}"
             # update the args to have the full gem name
-            # EX: if the user passes "--gem dashboards", the gem is transformed to "avo_dashboards"
+            # EX: if the user passes "--gem dashboards", the gem is transformed to "avo-dashboards"
             args[:gem] = gem_name
           elsif Pathname.new("../#{gem_name}").directory?
             # If the user runs the command from the support or testy dirs, we should be able to continue to run the command
