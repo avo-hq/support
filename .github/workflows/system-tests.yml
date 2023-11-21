@@ -51,8 +51,7 @@ jobs:
     - name: Clone Avo
       uses: actions/checkout@v3
       with:
-        # This need to be changed to avo repo after the launch
-        repository: avo-hq/avo-3
+        repository: avo-hq/avo
         path: avo
         token: ${{ secrets.AVO_CLONE_KEY }}
 
