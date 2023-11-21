@@ -50,11 +50,11 @@ jobs:
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
     - name: Clone Avo
-          uses: actions/checkout@v3
-          with:
-            repository: avo-hq/avo
-            path: avo
-            token: ${{ secrets.AVO_CLONE_KEY }}
+      uses: actions/checkout@v3
+      with:
+        repository: avo-hq/avo
+        path: avo
+        token: ${{ secrets.AVO_CLONE_KEY }}
 
     - name: Move Avo up one folder
       run: mv ./avo ./../avo
