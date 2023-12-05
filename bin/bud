@@ -51,7 +51,7 @@ module Buddy
         argument :level, desc: "major|minor|patch|pre"
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(level: "patch", gem: nil, **)
+        def call(level: "minor", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
 
           add_v1_files
