@@ -24,12 +24,6 @@ COPY ./lib/avo/${NAME}.rb /${NAME}/lib/avo/${NAME}.rb
 COPY ./package.json /${NAME}/
 COPY ./yarn.lock /${NAME}/
 
-RUN ls -la /
-RUN ls -la /${NAME}
-RUN ls -la /${NAME}/lib
-RUN ls -la /${NAME}/lib/avo
-RUN ls -la /${NAME}/lib/avo/${NAME}
-
 RUN bundle config set --global https://packager.dev/avo-hq-beta/ ${BUNDLER_TOKEN}
 RUN bundle config set --local without 'development test'
 RUN bundle install --jobs 4 --retry 3
