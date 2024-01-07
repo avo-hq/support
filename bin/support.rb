@@ -78,7 +78,7 @@ def image_id
 end
 
 def bundler_token
-  @token ||= `bundle config get https://packager.dev/avo-hq-beta`.match(/^.*: "(.*)"$/).captures.first
+  @token ||= `bundle config get https://packager.dev/avo-hq`.match(/^.*: "(.*)"$/).captures.first
 end
 
 def gems
