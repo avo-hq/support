@@ -113,6 +113,7 @@ module Buddy
 
       class Commit < BaseCommand
         desc "Commit the version change"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(gem: nil, **)
           if name == "avo"
