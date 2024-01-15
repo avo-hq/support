@@ -68,9 +68,9 @@ jobs:
       run: |
         cd ../avo
         bundle install
-        bin/rails avo:sym_link
         yarn install
         yarn build
+        bin/rails avo:sym_link
 
     - name: Setup DB
       run: bin/rails db:migrate:reset
