@@ -9,6 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler: default
+          ruby-version: 3.3.0
+
       - name: standardrb
         uses: adrianthedev/action-standardrb@master
         with:
