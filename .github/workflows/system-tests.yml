@@ -36,7 +36,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         bundler: default
-        ruby-version: 3.2.0
+        ruby-version: 3.3.0
 
     - name: Add AVO_GEM_TOKEN
       run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
