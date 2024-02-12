@@ -21,7 +21,7 @@ jobs:
         with:
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-review # Default is github-pr-check
-          rubocop_version: 0.1.6
+          rubocop_version: 1.60.2
           rubocop_flags: --format progress
 
   eslint:
