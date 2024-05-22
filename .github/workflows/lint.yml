@@ -24,6 +24,22 @@ jobs:
           rubocop_version: 1.33.0
           rubocop_flags: --format progress
 
+  erb-lint:
+    name: runner / erb-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3.0
+
+      - name: erb-lint
+        uses: reviewdog/action-erblint@v1
+        with:
+          github_token: ${{ secrets.github_token }}
+
   eslint:
     name: runner / eslint
     runs-on: ubuntu-latest
