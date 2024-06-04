@@ -11,6 +11,7 @@ GEM
     concurrent-ruby (1.2.2)
     dry-cli (1.0.0)
     dry-initializer (3.1.1)
+    gem-release (2.2.2)
     i18n (1.14.1)
       concurrent-ruby (~> 1.0)
     minitest (5.20.0)
@@ -35,6 +36,7 @@ DEPENDENCIES
   bump
   dry-cli
   dry-initializer
+  gem-release
   paint
   tty-command
 
