@@ -147,14 +147,15 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
+        argument :level, desc: "major|minor|patch|pre"
 
-        def call(gem: nil, skip_bump: false, **)
+        def call(gem: nil, skip_bump: false, level: "minor", **)
           # 1. Bump gem version
           if skip_bump
             # Run bundle to increment the version number in Gemfile.lock
             run("bundle")
           else
-            Bump.new.call
+            Bump.new.call level:
           end
           # 2. Build the gem
           Build.new.call
