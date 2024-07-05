@@ -149,7 +149,7 @@ module Buddy
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
         argument :level, desc: "major|minor|patch|pre"
 
-        def call(gem: nil, skip_bump: false, level: "minor", **)
+        def call(gem: nil, skip_bump: false, level: "patch", **)
           # 1. Bump gem version
           if skip_bump
             # Run bundle to increment the version number in Gemfile.lock
