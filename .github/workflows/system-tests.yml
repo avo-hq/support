@@ -33,7 +33,7 @@ jobs:
 
     env:
       RAILS_VERSION: ${{matrix.rails}}
-      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/rails_${{ matrix.rails }}_ruby_${{ matrix.ruby }}.gemfile
+      BUNDLE_GEMFILE: gemfiles/rails_${{ matrix.rails }}_ruby_${{ matrix.ruby }}.gemfile
 
     services:
       postgres:
