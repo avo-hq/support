@@ -33,6 +33,10 @@ jobs:
           - '8.0'
     runs-on: ubuntu-latest
 
+    env:
+      RAILS_VERSION: ${{matrix.rails}}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/rails_${{ matrix.rails }}_ruby_${{ matrix.ruby }}.gemfile
+
     services:
       postgres:
         image: postgres:10.8
@@ -46,7 +50,7 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         bundler: default
-        ruby-version: 3.3.0
+        ruby-version: ${{ matrix.ruby }}
 
     - name: Add AVO_GEM_TOKEN
       run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
