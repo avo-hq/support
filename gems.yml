@@ -5,4 +5,5 @@ gems:
   avo-dynamic_filters: "./avo-dynamic_filters"
   avo-dashboards: "./avo-dashboards"
   avo-menu: "./avo-menu"
+  avo-kanban: "./avo-kanban"
   testy: "./testy"
