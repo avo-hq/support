@@ -8,6 +8,10 @@ on:
       AVO_GEM_TOKEN:
         required: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   RAILS_ENV: test
   BUNDLE_PATH_RELATIVE_TO_CWD: true
