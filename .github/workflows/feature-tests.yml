@@ -66,13 +66,13 @@ jobs:
 
     - name: Clone Avo from "${{ github.head_ref }}"
       id: checkout_avo_branch
+      continue-on-error: true
       uses: actions/checkout@v4
       with:
         repository: avo-hq/avo
         path: avo
         token: ${{ secrets.AVO_CLONE_KEY }}
         ref: ${{ github.head_ref }}
-        continue-on-error: true  # Continue even if this step fails
 
     - name: Clone Avo from "main"
       if: steps.checkout_avo_branch.outcome != 'success'
