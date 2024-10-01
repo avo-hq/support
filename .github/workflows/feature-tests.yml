@@ -64,8 +64,19 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
-    - name: Clone Avo
-      uses: actions/checkout@v3
+    - name: Clone Avo from "${{ github.ref }}"
+      id: checkout_avo_branch
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo
+        path: avo
+        token: ${{ secrets.AVO_CLONE_KEY }}
+        ref: ${{ github.ref }}
+        continue-on-error: true  # Continue even if this step fails
+
+    - name: Clone Avo from "main"
+      if: steps.checkout_avo_branch.outcome != 'success'
+      uses: actions/checkout@v4
       with:
         repository: avo-hq/avo
         path: avo
