@@ -25,6 +25,8 @@ categories:
     label: 'style'
   - title: '🎡 CI'
     label: 'ci'
+  - title: '😎 Developer Experience (DX)'
+    label: 'Developer Experience (DX)'
   - title: '⚡️ Perf'
     label: 'perf'
 change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
