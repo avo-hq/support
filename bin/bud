@@ -104,6 +104,8 @@ module Buddy
 
           run "docker cp #{image_id}:#{src} #{destination_path}"
           say "Copied gem from docker image to #{destination_path}"
+
+          run("appraisal")
         end
       end
 
@@ -132,6 +134,8 @@ module Buddy
             `git add ./lib/avo/#{name}/version.rb`
           end
           `git add ./Gemfile.lock`
+
+          `git add gemfiles/`
 
           tag = "v#{version}"
 
