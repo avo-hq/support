@@ -171,6 +171,35 @@ module Buddy
         end
       end
 
+      class ReleaseAll < BaseCommand
+        GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+
+        desc "Release #{GEMS.join(", ")}"
+
+        option :skip_alarm, type: :boolean, aliases: ["-sa"], required: false, default: false, desc: "Skip alarm between releases."
+        argument :level, desc: "major|minor|patch|pre"
+
+        def alarm(frequency, duration)
+          pid = spawn("speaker-test --frequency #{frequency} --test sine")
+          sleep(duration)
+          Process.kill("KILL", pid)
+        end
+
+        def call(level: "minor", skip_alarm:, **)
+          GEMS.each do |gem|
+            unless skip_alarm
+              alarm 400, 0.19
+              alarm 500, 0.19
+              alarm 600, 0.19
+            end
+
+            Dir.chdir(gem) do
+              Release.new.call gem:, level:
+            end
+          end
+        end
+      end
+
       class Run < BaseCommand
         desc "Run a command"
 
@@ -279,6 +308,7 @@ module Buddy
       register "push", Push
       register "commit", Commit
       register "release", Release
+      register "release_all", ReleaseAll
       register "setup", Setup
 
       before "run", &chdir
