@@ -49,8 +49,6 @@ RUN bundle install --jobs 4 --retry 3
 RUN yarn install
 RUN yarn check --integrity
 
-ENV AVO_ENGINES=avo:/avo,avo-advanced:/avo-advanced,avo-pro:/avo-pro,avo-dynamic_filters:/avo-dynamic_filters,avo-dashboards:/avo-dashboards,avo-menu:/avo-menu,avo_nested_resources:/avo_nested_resources
-
 # Build assets
 RUN bundle exec rails avo:sym_link
 RUN yarn prod:build
