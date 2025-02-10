@@ -194,6 +194,7 @@ module Buddy
             end
 
             Dir.chdir(gem) do
+              `bundle`
               Release.new.call gem:, level:
             end
           end
