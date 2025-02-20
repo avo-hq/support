@@ -87,28 +87,8 @@ jobs:
         path: avo
         token: ${{ secrets.AVO_CLONE_KEY }}
 
-    - name: Clone Avo dashboards from "${{ github.head_ref }}"
-      id: checkout_avo_dashboards_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dashboards
-        path: avo-dashboards
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo dashboards from "main"
-      if: steps.checkout_avo_dashboards_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dashboards
-        path: avo-dashboards
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
     - name: Move Avo up one folder
-      run: |
-        mv ./avo ./../avo
-        mv ./avo-dashboards ./../avo-dashboards
+      run: mv ./avo ./../avo
 
     - name: Bundle install
       run: |
