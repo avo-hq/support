@@ -89,7 +89,7 @@ jobs:
         token: ${{ secrets.AVO_CLONE_KEY }}
 
     - name: Clone Avo dashboards from "${{ github.head_ref }}"
-      id: checkout_avo_branch
+      id: checkout_avo_dashboards_branch
       continue-on-error: true
       uses: actions/checkout@v4
       with:
@@ -99,7 +99,7 @@ jobs:
         ref: ${{ github.head_ref }}
 
     - name: Clone Avo dashboards from "main"
-      if: steps.checkout_avo_branch.outcome != 'success'
+      if: steps.checkout_avo_dashboards_branch.outcome != 'success'
       uses: actions/checkout@v4
       with:
         repository: avo-hq/avo-dashboards
