@@ -107,9 +107,9 @@ jobs:
         token: ${{ secrets.AVO_CLONE_KEY }}
 
     - name: Move Avo up one folder
-      run: mv ./avo ./../avo
-      run: mv ./avo-dashboards ./../avo-dashboards
-
+      run: |
+        mv ./avo ./../avo
+        mv ./avo-dashboards ./../avo-dashboards
 
     - name: Bundle install
       run: |
