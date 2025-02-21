@@ -2,6 +2,11 @@ name: Feature Tests
 
 on:
   workflow_call:
+    inputs:
+      AVO_DEPENDENCIES:
+        description: "Necessary avo repos for testing"
+        required: false
+        type: string
     secrets:
       AVO_CLONE_KEY:
         required: true
