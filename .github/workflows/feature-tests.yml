@@ -88,7 +88,9 @@ jobs:
         for repo in "${repos[@]}"; do
           echo "Cloning $repo..."
 
+          # Set GitHub repository path
           gh_repo="avo-hq/$repo"
+          path="./../$repo"
 
           # Check if the branch exists
           if gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent; then
@@ -100,8 +102,8 @@ jobs:
           fi
 
           # Clone the repo
-          gh repo clone $gh_repo $repo -- --branch $branch_ref
-          mv "./$repo" "./../$repo"
+          gh repo clone $gh_repo $path -- --branch $branch_ref
+
           echo ""
         done
 
