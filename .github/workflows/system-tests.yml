@@ -79,21 +79,18 @@ jobs:
         # Ensure "avo" is always included
         avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
 
-        # Remove trailing comma if AVO_DEPENDENCIES is empty
-        avo_dependencies_repositories=$(echo "$avo_dependencies_repositories" | sed 's/,$//')
-
         # Convert string into an array
         IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
 
         for repo in "${repos[@]}"; do
-          echo "Cloning $repo."
+          echo "Cloning $repo..."
 
-          # Attempt to checkout head_ref first
+          # Set GitHub repository path
           gh_repo="avo-hq/$repo"
           path="./../$repo"
 
-          gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent
-          if [ $? -eq 0 ]; then
+          # Check if the branch exists
+          if gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent; then
             echo "Branch ${{ github.head_ref }} exists, checking out..."
             branch_ref="${{ github.head_ref }}"
           else
@@ -101,6 +98,7 @@ jobs:
             branch_ref="main"
           fi
 
+          # Clone the repo
           gh repo clone $gh_repo $path -- --branch $branch_ref
 
           echo "\n"
