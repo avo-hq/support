@@ -124,11 +124,49 @@ jobs:
         path: avo-menu
         token: ${{ secrets.AVO_CLONE_KEY }}
 
+    - name: Clone Avo pro from "${{ github.head_ref }}"
+      id: checkout_avo_pro_branch
+      continue-on-error: true
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-pro
+        path: avo-pro
+        token: ${{ secrets.AVO_CLONE_KEY }}
+        ref: ${{ github.head_ref }}
+
+    - name: Clone Avo pro from "main"
+      if: steps.checkout_avo_pro_branch.outcome != 'success'
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-pro
+        path: avo-pro
+        token: ${{ secrets.AVO_CLONE_KEY }}
+
+    - name: Clone Avo dynamic_filters from "${{ github.head_ref }}"
+      id: checkout_avo_dynamic_filters_branch
+      continue-on-error: true
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-dynamic_filters
+        path: avo-dynamic_filters
+        token: ${{ secrets.AVO_CLONE_KEY }}
+        ref: ${{ github.head_ref }}
+
+    - name: Clone Avo dynamic_filters from "main"
+      if: steps.checkout_avo_dynamic_filters_branch.outcome != 'success'
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-dynamic_filters
+        path: avo-dynamic_filters
+        token: ${{ secrets.AVO_CLONE_KEY }}
+
     - name: Move Avo up one folder
       run: |
         mv ./avo ./../avo
         mv ./avo-dashboards ./../avo-dashboards
         mv ./avo-menu ./../avo-menu
+        mv ./avo-pro ./../avo-pro
+        mv ./avo-dynamic_filters ./../avo-dynamic_filters
 
     - name: Bundle install
       run: |
