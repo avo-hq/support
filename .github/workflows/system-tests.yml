@@ -69,103 +69,33 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
-    - name: Clone Avo from "${{ github.head_ref }}"
-      id: checkout_avo_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo
-        path: avo
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo from "main"
-      if: steps.checkout_avo_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo
-        path: avo
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
-    - name: Clone Avo dashboards from "${{ github.head_ref }}"
-      id: checkout_avo_dashboards_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dashboards
-        path: avo-dashboards
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo dashboards from "main"
-      if: steps.checkout_avo_dashboards_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dashboards
-        path: avo-dashboards
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
-    - name: Clone Avo menu from "${{ github.head_ref }}"
-      id: checkout_avo_menu_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-menu
-        path: avo-menu
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo menu from "main"
-      if: steps.checkout_avo_menu_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-menu
-        path: avo-menu
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
-    - name: Clone Avo pro from "${{ github.head_ref }}"
-      id: checkout_avo_pro_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-pro
-        path: avo-pro
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo pro from "main"
-      if: steps.checkout_avo_pro_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-pro
-        path: avo-pro
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
-    - name: Clone Avo dynamic_filters from "${{ github.head_ref }}"
-      id: checkout_avo_dynamic_filters_branch
-      continue-on-error: true
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dynamic_filters
-        path: avo-dynamic_filters
-        token: ${{ secrets.AVO_CLONE_KEY }}
-        ref: ${{ github.head_ref }}
-
-    - name: Clone Avo dynamic_filters from "main"
-      if: steps.checkout_avo_dynamic_filters_branch.outcome != 'success'
-      uses: actions/checkout@v4
-      with:
-        repository: avo-hq/avo-dynamic_filters
-        path: avo-dynamic_filters
-        token: ${{ secrets.AVO_CLONE_KEY }}
-
-    - name: Move Avo up one folder
+    - name: Clone all repositories
+      shell: bash
       run: |
-        mv ./avo ./../avo
-        mv ./avo-dashboards ./../avo-dashboards
-        mv ./avo-menu ./../avo-menu
-        mv ./avo-pro ./../avo-pro
-        mv ./avo-dynamic_filters ./../avo-dynamic_filters
+        repos=("avo" "avo-dashboards" "avo-menu" "avo-pro" "avo-dynamic_filters")
+
+        for repo in "${repos[@]}"; do
+          echo "Cloning $repo from branch ${{ github.head_ref }}..."
+
+          # Attempt to checkout head_ref first
+          gh_repo="avo-hq/$repo"
+          path="./../$repo"
+
+          gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent
+          if [ $? -eq 0 ]; then
+            echo "Branch ${{ github.head_ref }} exists, checking out..."
+            branch_ref="${{ github.head_ref }}"
+          else
+            echo "Branch ${{ github.head_ref }} not found, defaulting to main..."
+            branch_ref="main"
+          fi
+
+          gh workflow run actions/checkout@v4 \
+            --with repository=$gh_repo \
+            --with path=$path \
+            --with token=${{ secrets.AVO_CLONE_KEY }} \
+            --with ref=$branch_ref
+        done
 
     - name: Bundle install
       run: |
