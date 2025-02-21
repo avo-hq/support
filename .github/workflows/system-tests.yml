@@ -105,10 +105,29 @@ jobs:
         path: avo-dashboards
         token: ${{ secrets.AVO_CLONE_KEY }}
 
+    - name: Clone Avo menu from "${{ github.head_ref }}"
+      id: checkout_avo_menu_branch
+      continue-on-error: true
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-menu
+        path: avo-menu
+        token: ${{ secrets.AVO_CLONE_KEY }}
+        ref: ${{ github.head_ref }}
+
+    - name: Clone Avo menu from "main"
+      if: steps.checkout_avo_menu_branch.outcome != 'success'
+      uses: actions/checkout@v4
+      with:
+        repository: avo-hq/avo-menu
+        path: avo-menu
+        token: ${{ secrets.AVO_CLONE_KEY }}
+
     - name: Move Avo up one folder
       run: |
         mv ./avo ./../avo
         mv ./avo-dashboards ./../avo-dashboards
+        mv ./avo-menu ./../avo-menu
 
     - name: Bundle install
       run: |
