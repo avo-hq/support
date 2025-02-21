@@ -75,7 +75,7 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
-    - name: Clone all repositories
+    - name: Clone Avo repositories
       shell: bash
       run: |
         # Ensure "avo" is always included
@@ -103,7 +103,7 @@ jobs:
           # Clone the repo
           gh repo clone $gh_repo $path -- --branch $branch_ref
 
-          echo "\n"
+          echo ""
         done
 
     - name: Bundle install
