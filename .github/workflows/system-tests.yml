@@ -2,6 +2,9 @@ name: System Tests
 
 on:
   workflow_call:
+    inputs:
+      AVO_DEPENDENCIES:
+        required: false
     secrets:
       AVO_CLONE_KEY:
         required: true
@@ -73,10 +76,17 @@ jobs:
     - name: Clone all repositories
       shell: bash
       run: |
-        repos=("avo" "avo-dashboards" "avo-menu" "avo-pro" "avo-dynamic_filters")
+        # Ensure "avo" is always included
+        avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
+
+        # Remove trailing comma if AVO_DEPENDENCIES is empty
+        avo_dependencies_repositories=$(echo "$avo_dependencies_repositories" | sed 's/,$//')
+
+        # Convert string into an array
+        IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
 
         for repo in "${repos[@]}"; do
-          echo "Cloning $repo from branch ${{ github.head_ref }}..."
+          echo "Cloning $repo."
 
           # Attempt to checkout head_ref first
           gh_repo="avo-hq/$repo"
@@ -92,6 +102,8 @@ jobs:
           fi
 
           gh repo clone $gh_repo $path -- --branch $branch_ref
+
+          echo "\n"
         done
 
     - name: Bundle install
