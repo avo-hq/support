@@ -52,8 +52,6 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
-
     - name: Set up Ruby
       uses: ruby/setup-ruby@v1
       with:
@@ -91,11 +89,7 @@ jobs:
             branch_ref="main"
           fi
 
-          gh workflow run actions/checkout@v4 \
-            --with repository=$gh_repo \
-            --with path=$path \
-            --with token=${{ secrets.AVO_CLONE_KEY }} \
-            --with ref=$branch_ref
+          gh repo clone $gh_repo $path -- --branch $branch_ref
         done
 
     - name: Bundle install
