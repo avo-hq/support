@@ -28,6 +28,7 @@ env:
   POSTGRES_HOST: localhost
   POSTGRES_USERNAME: postgres
   POSTGRES_PORT: 5432
+  GH_TOKEN: ${{ secrets.AVO_CLONE_KEY }}
 
 jobs:
   feature_specs:
