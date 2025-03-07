@@ -86,9 +86,9 @@ module Buddy
           add_v1_files
 
           # Build the base image
-          run("docker build -t avo_base -f ./../support/docker/Dockerfile.base ./../avo --progress #{DOCKER_PROGRESS} -q")
+          run("docker build -t avo_base -f ./../support/docker/Dockerfile.base ./../avo --progress #{DOCKER_PROGRESS}")
           # Build the image with Avo included
-          run("docker build -t avo_gems -f ./../support/docker/Dockerfile.gems ./../avo --progress #{DOCKER_PROGRESS} -q")
+          run("docker build -t avo_gems -f ./../support/docker/Dockerfile.gems ./.. --progress #{DOCKER_PROGRESS}")
           say "Base Docker image built"
 
           # For Avo we use a special Dockerfile and building from the root directory
