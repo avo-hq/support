@@ -2,6 +2,9 @@ name: Create release
 
 on:
   workflow_call:
+    secrets:
+      REFRESH_RELEASES_SECRET:
+        required: true
 
 jobs:
   build:
@@ -35,4 +38,4 @@ jobs:
         prerelease: false
 
     - name: Publish release on avohq.io
-      run: curl https://avohq.io/releases/refresh_releases
+      run: curl -X GET "https://avohq.io/releases/refresh_releases?secret=${{ secrets.REFRESH_RELEASES_SECRET }}"
