@@ -101,7 +101,7 @@ jobs:
             echo "Branch ${{ github.head_ref }} exists, checking out..."
             branch_ref="${{ github.head_ref }}"
           else
-            echo "Branch ${{ github.head_ref }} not found, defaulting to main..."
+            echo "Branch ${{ github.head_ref }} not found, defaulting to ${{ inputs.AVO_FALLBACK_BRANCH }}..."
             branch_ref=${{ inputs.AVO_FALLBACK_BRANCH }}
           fi
 
