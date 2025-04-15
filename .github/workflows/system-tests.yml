@@ -7,6 +7,11 @@ on:
         description: "Necessary avo repos for testing"
         required: false
         type: string
+      AVO_FALLBACK_BRANCH:
+        description: "Branch to fallback"
+        required: false
+        type: string
+        default: "main"
     secrets:
       AVO_CLONE_KEY:
         required: true
@@ -97,7 +102,7 @@ jobs:
             branch_ref="${{ github.head_ref }}"
           else
             echo "Branch ${{ github.head_ref }} not found, defaulting to main..."
-            branch_ref="main"
+            branch_ref=${{ inputs.AVO_FALLBACK_BRANCH }}
           fi
 
           # Clone the repo
