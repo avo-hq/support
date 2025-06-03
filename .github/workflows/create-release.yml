@@ -2,6 +2,9 @@ name: Create release
 
 on:
   workflow_call:
+    secrets:
+      REFRESH_RELEASES_SECRET:
+        required: true
 
 jobs:
   build:
