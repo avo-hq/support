@@ -105,7 +105,7 @@ module Buddy
           run "docker cp #{image_id}:#{src} #{destination_path}"
           say "Copied gem from docker image to #{destination_path}"
 
-          run("appraisal")
+          run("bundle exec appraisal")
         end
       end
 
