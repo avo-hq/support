@@ -6,3 +6,4 @@ COPY ./avo-menu /avo-menu
 COPY ./avo-dynamic_filters /avo-dynamic_filters
 COPY ./avo-pro /avo-pro
 COPY ./avo-advanced /avo-advanced
+COPY ./avo-forms /avo-forms

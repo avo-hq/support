@@ -41,6 +41,7 @@ COPY ./avo-advanced /avo-advanced
 COPY ./avo-dashboards /avo-dashboards
 COPY ./avo-dynamic_filters /avo-dynamic_filters
 COPY ./avo-menu /avo-menu
+COPY ./avo-forms /avo-forms
 
 # Run the install again
 RUN bundle install --jobs 4 --retry 3
