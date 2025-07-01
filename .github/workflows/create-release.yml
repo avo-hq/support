@@ -42,5 +42,5 @@ jobs:
       env:
         REFRESH_RELEASES_SECRET: ${{ secrets.REFRESH_RELEASES_SECRET }}
       run: |
-        curl -X GET "https://avohq.io/releases/refresh_releases?secret=${REFRESH_RELEASES_SECRET}"
+        curl -X GET "https://avohq.io/releases/refresh_releases?secret=$REFRESH_RELEASES_SECRET"
         echo "Release published on avohq.io"
