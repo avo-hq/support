@@ -50,7 +50,7 @@ RUN yarn check --integrity
 
 # Build assets
 RUN bundle exec rails avo:sym_link
-RUN yarn build
+RUN yarn prod:build
 
 # Build gem
 RUN bundle exec rails build
