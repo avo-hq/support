@@ -34,6 +34,12 @@ def version
   @version ||= gemspec.version.to_s
 end
 
+# fetch the Avo version from the avo gem
+def avo_gem_version
+  require_relative "../../avo/lib/avo/version"
+  @avo_version ||= Avo::VERSION
+end
+
 def gemspec_name
   gemspec.name
 end

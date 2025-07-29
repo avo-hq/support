@@ -1,2 +1,4 @@
-node_modules
-spec
+.git/
+node_modules/
+spec/
+tmp/
