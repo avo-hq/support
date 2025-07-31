@@ -3,6 +3,7 @@ FROM avo_gems
 ARG NAME
 ARG GEMSPEC_NAME
 ARG BUNDLER_TOKEN
+ARG AVO_VERSION
 
 WORKDIR /${NAME}/
 
@@ -12,6 +13,7 @@ RUN mkdir /${NAME}/lib/avo
 RUN mkdir /${NAME}/lib/avo/${NAME}
 
 ENV BUNDLE_WITHOUT=development:test
+ENV AVO_VERSION=${AVO_VERSION}
 
 # Cache the bundle install command with a fake version
 COPY ./tmp/Gemfile_v1.lock /${NAME}/Gemfile.lock

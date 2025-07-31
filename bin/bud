@@ -77,8 +77,12 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(gem: nil, **)
+        def call(gem: nil, forced_avo_version: nil, **)
           FileUtils.mkdir_p "pkg"
+
+          avo_version = forced_avo_version || avo_gem_version
+
+          say "avo version: #{avo_version}"
 
           remove_previous_gem
 
@@ -97,7 +101,7 @@ module Buddy
 
           # Build the build image
           say "Building Docker image"
-          run("docker build -t #{name} -f ./../support/docker/#{dockerfile} #{build_path} --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name} --build-arg GEMSPEC_NAME=#{gemspec_name} --build-arg BUNDLER_TOKEN=#{bundler_token}")
+          run("docker build -t #{name} -f ./../support/docker/#{dockerfile} #{build_path} --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name} --build-arg GEMSPEC_NAME=#{gemspec_name} --build-arg BUNDLER_TOKEN=#{bundler_token} --build-arg AVO_VERSION=#{avo_version}")
           say "Docker image built"
 
           src = "/#{name}/pkg/#{gemspec_name}-#{version}.gem"
@@ -153,7 +157,7 @@ module Buddy
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
         argument :level, desc: "major|minor|patch|pre"
 
-        def call(gem: nil, skip_bump: false, level: "minor", **)
+        def call(gem: nil, skip_bump: false, level: "patch", **)
           # 1. Bump gem version
           if skip_bump
             # Run bundle to increment the version number in Gemfile.lock
