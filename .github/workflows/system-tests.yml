@@ -110,13 +110,33 @@ jobs:
         bundle config path vendor/bundle
         bundle install --jobs 4 --retry 3
 
-    - name: Compile Avo assets (development mode)
+    - name: Compile repositories assets (development mode)
+      shell: bash
       run: |
-        cd ../avo
-        bundle install
-        yarn install
-        yarn build
-        bin/rails avo:sym_link
+        # Build assets for all cloned Avo repos (avo + any from AVO_DEPENDENCIES)
+        avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
+
+        IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
+
+        for repo in "${repos[@]}"; do
+          dir="../$repo"
+          echo "Compiling assets for $repo in $dir..."
+          if [ -d "$dir" ]; then
+            (
+              cd "$dir"
+              if [ -f "Gemfile" ]; then
+                bundle install
+              fi
+              if [ -f "package.json" ]; then
+                yarn install
+                yarn build
+              fi
+            )
+          else
+            echo "Directory $dir not found. Skipping $repo."
+          fi
+          echo ""
+        done
 
     - name: Setup DB
       run: bin/rails db:migrate:reset
