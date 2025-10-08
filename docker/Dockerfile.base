@@ -1,4 +1,16 @@
+# stage: docker client binaries
+FROM docker:27-cli AS dockercli
+
+# final: your app
 FROM ruby:3.2.1
+# optional: build tools for native gems
+RUN apt-get update && apt-get install -y build-essential git && rm -rf /var/lib/apt/lists/*
+
+# copy docker client + plugins (e.g., buildx)
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+
+WORKDIR /app
+COPY . .
 
 RUN apt-get update -qq && apt-get install -yqq build-essential apt-transport-https apt-utils
 
