@@ -1,6 +1,7 @@
 FROM avo_base
 
 COPY ./avo /avo
+COPY ./evocation /evocation
 COPY ./avo-dashboards /avo-dashboards
 COPY ./avo-menu /avo-menu
 COPY ./avo-dynamic_filters /avo-dynamic_filters
