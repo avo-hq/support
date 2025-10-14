@@ -64,8 +64,6 @@ module Buddy
         def call(level: "minor", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
 
-          add_v1_files
-
           run("bundle")
 
           say message(version)
@@ -176,32 +174,186 @@ module Buddy
       end
 
       class ReleaseAll < BaseCommand
+        # all the gems that will be released
         GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+
+        # gem that will be used to build the evocation loaders and will ship them
+        # I chose avo-dashboards because it's the gem that is a dependency for all the other gems
+        # We could use avo as well, maybe in the future we will use it
+        LOADER_HOLDER = "avo-dashboards"
+        # gems that will be encrypted using the holder gem's key and loaders
+        GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
         desc "Release #{GEMS.join(", ")}"
 
-        option :skip_alarm, type: :boolean, aliases: ["-sa"], required: false, default: false, desc: "Skip alarm between releases."
-        argument :level, desc: "major|minor|patch|pre"
+        argument :level,
+          desc: "major|minor|patch|pre",
+          default: "minor",
+          required: false
+        option :skip_bump,
+          aliases: ["-sb"],
+          type: :boolean,
+          desc: "Skip bumping the version.",
+          default: false,
+          required: false
+        option :skip_unstashed_changes,
+          aliases: ["-suc"],
+          type: :boolean,
+          desc: "Skip checking for unstashed changes.",
+          default: false,
+          required: false
 
-        def alarm(frequency, duration)
-          pid = spawn("speaker-test --frequency #{frequency} --test sine")
-          sleep(duration)
-          Process.kill("KILL", pid)
-        end
+        def call(level:, skip_bump:, skip_unstashed_changes:, **)
+          time_start = Time.now
+          # Detect unstashed changes and show them to the user
+          unless skip_unstashed_changes
+            GEMS.each do |gem|
+              Dir.chdir(gem) do
+                files = `git status --porcelain`.split("\n")
+                if files.any?
+                  say "You have unstashed changes in #{gem}:"
+                  files.each do |file|
+                    say file
+                  end
 
-        def call(level: "minor", skip_alarm:, **)
-          GEMS.each do |gem|
-            unless skip_alarm
-              alarm 400, 0.19
-              alarm 500, 0.19
-              alarm 600, 0.19
-            end
-
-            Dir.chdir(gem) do
-              `bundle`
-              Release.new.call gem:, level:
+                  say "Would you like to continue anyway? (y/n)"
+                  answer = STDIN.gets.chomp
+                  if answer != "y"
+                    exit
+                  end
+                end
+              end
             end
           end
+
+          GEMS.each do |gem|
+            Dir.chdir(gem) do
+              say "==============================================="
+              say "PREPARE RELEASE & BUMP VERSION for #{gem}"
+              say "==============================================="
+              run("rm -rf ./tmp/*")
+              run("rm -rf ./pkg/*")
+              run("find .evocation -mindepth 1 ! -name 'config.yml' -exec rm -rf {} +")
+
+              if Dir.exist?("app/assets/builds")
+                run("rm -rf app/assets/builds/*")
+                run("touch app/assets/builds/.keep")
+              end
+
+              if File.exist?("package.json")
+                run("rm -rf node_modules")
+                run("yarn")
+                run("yarn build")
+
+                # Avo needs to build the assets again because sym_link requires application.css to be present
+                # This is a temporary solution until we have a better way to handle this
+                if gem == "avo"
+                  run("rails avo:sym_link")
+
+                  if Dir.exist?("app/assets/builds")
+                    run("rm -rf app/assets/builds/*")
+                    run("touch app/assets/builds/.keep")
+                  end
+
+                  run("rm -rf node_modules")
+                  run("yarn")
+                  run("yarn build")
+                end
+              end
+              unless skip_bump
+                Bump.new.call level:
+              end
+            end
+          end
+
+          time_build_loaders_start = Time.now
+          Dir.chdir(LOADER_HOLDER) do
+            say "==============================================="
+            say "BUILD EVOCATION LOADERS on #{LOADER_HOLDER}"
+            say "==============================================="
+            run("evocation key create")
+            run("evocation loader generate")
+            run("EVOCATION_DIR=$(realpath ../evocation) RCD_MOUNTDIR=$(pwd)/.. evocation loader cross_compile #{LOADER_HOLDER}.gemspec")
+          end
+          time_build_loaders_end = Time.now
+
+          time_encrypt_gems_start = Time.now
+          GEMS_TO_ENCRYPT.each do |gem|
+            Dir.chdir(gem) do
+              say "==================================================================="
+              say "Encrypting #{gem} using #{LOADER_HOLDER}'s key and loaders"
+              say "==================================================================="
+              run("evocation encrypt gem #{gem}.gemspec --key_path ../#{LOADER_HOLDER}/.evocation/symmetric_key.bin --loader_gem #{LOADER_HOLDER}")
+            end
+          end
+
+          time_encrypt_gems_end = Time.now
+
+          time_build_gems_start = Time.now
+          GEMS.each do |gem|
+            Dir.chdir(gem) do
+              say "==============================================="
+              say "BUILD #{gem}"
+              say "==============================================="
+              run("bundle exec rails build")
+            end
+          end
+
+          time_build_gems_end = Time.now
+
+          GEMS_TO_ENCRYPT.each do |gem|
+            Dir.chdir(gem) do
+              say "==============================================="
+              say "APPRAISAL for #{gem}"
+              say "==============================================="
+              run("bundle exec appraisal")
+
+              say "==============================================="
+              say "Removing encrypted files for #{gem}"
+              say "==============================================="
+
+              run <<~BASH
+                for enc_file in $(find . -name "*.enc"); do
+                  rm -f $enc_file
+                  git checkout ${enc_file%.enc}.rb
+                done
+              BASH
+            end
+          end
+
+
+          say "Gems are encrypted and ready to be pushed, do you want to continue? (y/n)"
+          answer = STDIN.gets.chomp
+          if answer != "y"
+            exit
+          end
+
+          # Exclude avo because it's already pushed to rubygems.org
+          # Only after public release of avo, for now we push it to github packages
+          GEMS.each do |gem|
+            Dir.chdir(gem) do
+              say "==============================================="
+              say "Pushing #{gem} to github packages"
+              say "==============================================="
+              `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gem}-*.gem`
+            end
+          end
+
+          GEMS.each do |gem|
+            Dir.chdir(gem) do
+              say "==============================================="
+              say "Commiting #{gem} to GitHub"
+              say "==============================================="
+              Commit.new.call gem: gem
+            end
+          end
+
+          time_end = Time.now
+
+          say "Total time taken: #{time_end - time_start} seconds"
+          say "Time taken to build loaders: #{time_build_loaders_end - time_build_loaders_start} seconds"
+          say "Time taken to encrypt all gems: #{time_encrypt_gems_end - time_encrypt_gems_start} seconds"
+          say "Time taken to build gems: #{time_build_gems_end - time_build_gems_start} seconds"
         end
       end
 
