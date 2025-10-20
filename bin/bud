@@ -129,7 +129,7 @@ module Buddy
         desc "Commit the version change"
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(gem: nil, **)
+        def call(gem: nil, tag: true, **)
           if name == "avo"
             `git add ./lib/avo/version.rb`
           else
@@ -139,10 +139,12 @@ module Buddy
 
           `git add gemfiles/`
 
-          tag = "v#{version}"
+          tag_name = "v#{version}"
 
           `git commit -m "#{message(version)}"`
-          `git tag -a -m "#{message(version)}" #{tag}`
+          if tag
+            `git tag -a -m "#{message(version)}" #{tag_name}`
+          end
 
           `git push origin main --follow-tags`
         end
@@ -175,14 +177,14 @@ module Buddy
 
       class ReleaseAll < BaseCommand
         # all the gems that will be released
-        GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+        GEMS = ["avo-licensing", "avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
         # gem that will be used to build the evocation loaders and will ship them
         # I chose avo-dashboards because it's the gem that is a dependency for all the other gems
         # We could use avo as well, maybe in the future we will use it
-        LOADER_HOLDER = "avo-dashboards"
+        LOADER_HOLDER = "avo-licensing"
         # gems that will be encrypted using the holder gem's key and loaders
-        GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+        GEMS_TO_ENCRYPT = ["avo-licensing", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
         desc "Release #{GEMS.join(", ")}"
 
@@ -202,8 +204,14 @@ module Buddy
           desc: "Skip checking for unstashed changes.",
           default: false,
           required: false
+        option :keep_previous_loaders,
+          aliases: ["-kpl"],
+          type: :boolean,
+          desc: "Keep previous evocation key and loaders.",
+          default: false,
+          required: false
 
-        def call(level:, skip_bump:, skip_unstashed_changes:, **)
+        def call(level:, skip_bump:, skip_unstashed_changes:, keep_previous_loaders:, **)
           time_start = Time.now
           # Detect unstashed changes and show them to the user
           unless skip_unstashed_changes
@@ -233,11 +241,17 @@ module Buddy
               say "==============================================="
               run("rm -rf ./tmp/*")
               run("rm -rf ./pkg/*")
-              run("find .evocation -mindepth 1 ! -name 'config.yml' -exec rm -rf {} +")
+
+              # Remove all evocation stuff except the config.yml
+              run("find .evocation -mindepth 1 ! -name 'config.yml' -exec rm -rf {} +") unless keep_previous_loaders
 
               if Dir.exist?("app/assets/builds")
                 run("rm -rf app/assets/builds/*")
                 run("touch app/assets/builds/.keep")
+              end
+
+              unless skip_bump
+                Bump.new.call level:
               end
 
               if File.exist?("package.json")
@@ -260,20 +274,20 @@ module Buddy
                   run("yarn build")
                 end
               end
-              unless skip_bump
-                Bump.new.call level:
-              end
             end
           end
 
+
           time_build_loaders_start = Time.now
-          Dir.chdir(LOADER_HOLDER) do
-            say "==============================================="
-            say "BUILD EVOCATION LOADERS on #{LOADER_HOLDER}"
-            say "==============================================="
-            run("evocation key create")
-            run("evocation loader generate")
-            run("EVOCATION_DIR=$(realpath ../evocation) RCD_MOUNTDIR=$(pwd)/.. evocation loader cross_compile #{LOADER_HOLDER}.gemspec")
+          unless keep_previous_loaders
+            Dir.chdir(LOADER_HOLDER) do
+              say "==============================================="
+              say "BUILD EVOCATION LOADERS on #{LOADER_HOLDER}"
+              say "==============================================="
+              run("evocation key create")
+              run("evocation loader generate")
+              run("EVOCATION_DIR=$(realpath ../evocation) RCD_MOUNTDIR=$(pwd)/.. evocation loader cross_compile #{LOADER_HOLDER}.gemspec")
+            end
           end
           time_build_loaders_end = Time.now
 
@@ -295,7 +309,11 @@ module Buddy
               say "==============================================="
               say "BUILD #{gem}"
               say "==============================================="
-              run("bundle exec rails build")
+              if gem == "avo-licensing"
+                run("gem build")
+              else
+                run("bundle exec rails build")
+              end
             end
           end
 
@@ -306,7 +324,7 @@ module Buddy
               say "==============================================="
               say "APPRAISAL for #{gem}"
               say "==============================================="
-              run("bundle exec appraisal")
+              run("bundle exec appraisal") unless gem == "avo-licensing"
 
               say "==============================================="
               say "Removing encrypted files for #{gem}"
@@ -335,7 +353,12 @@ module Buddy
               say "==============================================="
               say "Pushing #{gem} to github packages"
               say "==============================================="
-              `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gem}-*.gem`
+              if gem == "avo-licensing"
+                `gem push --key github --host https://rubygems.pkg.github.com/avo-hq #{gem}-*.gem`
+                `rm #{gem}-*.gem`
+              else
+                `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gem}-*.gem`
+              end
             end
           end
 
@@ -344,7 +367,8 @@ module Buddy
               say "==============================================="
               say "Commiting #{gem} to GitHub"
               say "==============================================="
-              Commit.new.call gem: gem
+              # Don't tag for now
+              Commit.new.call gem: gem, tag: false
             end
           end
 
