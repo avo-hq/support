@@ -45,6 +45,31 @@ module Buddy
           yell message
           exit
         end
+
+        def parallelize(items, label: nil, &block)
+          pids_to_items = {}
+          items.each do |item|
+            pid = Process.fork do
+              begin
+                block.call(item)
+              rescue SystemExit
+                raise
+              rescue Exception => e
+                warn e.message
+                exit 1
+              end
+            end
+            pids_to_items[pid] = item
+          end
+
+          failures = []
+          pids_to_items.each do |pid, item|
+            _wpid, status = Process.wait2(pid)
+            failures << item unless status.success?
+          end
+
+          halt(message: "#{label || 'Parallel step'} failed for: #{failures.join(', ')}") if failures.any?
+        end
       end
 
       class Version < BaseCommand
@@ -116,8 +141,12 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(gem: nil, **)
-          if gemspec_name == "avo"
+        def call(gem: nil, only_push_to_github: false, **)
+          say "==============================================="
+          say "Pushing #{name}"
+          say "==============================================="
+
+          if gemspec_name == "avo" && !only_push_to_github
             `gem push --host https://rubygems.org/ ./pkg/#{gemspec_name}.gem`
           else
             `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
@@ -175,14 +204,106 @@ module Buddy
         end
       end
 
+      class PrepareRelease < BaseCommand
+        desc "Prepare release: clean, optional bump, build JS assets"
+
+        argument :level, desc: "major|minor|patch|pre", default: "minor"
+        option :skip_bump, type: :boolean, default: false, desc: "Skip bumping the version."
+
+        def call(level: "minor", skip_bump: false, **)
+          say "==============================================="
+          say "PREPARE RELEASE & BUMP VERSION for #{name}"
+          say "==============================================="
+          run("rm -rf ./pkg/*")
+
+          if Dir.exist?("app/assets/builds")
+            run("rm -rf app/assets/builds/*")
+            run("touch app/assets/builds/.keep")
+          end
+
+          unless skip_bump
+            Bump.new.call level:
+          end
+
+          if File.exist?("package.json")
+            # run("rm -rf node_modules")
+            run("yarn --silent")
+            run("yarn build")
+
+            # Avo needs to build the assets again because sym_link requires application.css to be present
+            # This is a temporary solution until we have a better way to handle this
+            if name == "avo"
+              run("rails avo:sym_link")
+
+              if Dir.exist?("app/assets/builds")
+                run("rm -rf app/assets/builds/*")
+                run("touch app/assets/builds/.keep")
+              end
+
+              # run("rm -rf node_modules")
+              run("yarn")
+              run("yarn build")
+            end
+          end
+        end
+      end
+
+      class Encrypt < BaseCommand
+        desc "Encrypt gem files using holder's key and loaders"
+
+        option :loader_holder, required: false, default: "avo-licensing", desc: "Loader/holder gem name"
+
+        def call(loader_holder: "avo-licensing", **)
+          say "==================================================================="
+          say "Encrypting #{name} using #{loader_holder}'s key and loaders"
+          say "==================================================================="
+          run("evocation encrypt gem #{gemspec_name}.gemspec --key_path ../#{loader_holder}/.evocation/symmetric_key.bin --loader_gem #{loader_holder}")
+        end
+      end
+
+      class BuildGem < BaseCommand
+        desc "Build gem artifacts (rails build)"
+
+        def call(**)
+          say "==============================================="
+          say "BUILD #{name}"
+          say "==============================================="
+          run("bundle exec rails build && mv ./pkg/*.gem #{destination_path}")
+        end
+      end
+
+      class Appraise < BaseCommand
+        desc "Run appraisal"
+
+        def call(**)
+          say "==============================================="
+          say "APPRAISAL for #{name}"
+          say "==============================================="
+          run("bundle exec appraisal")
+        end
+      end
+
+      class CleanupEncrypted < BaseCommand
+        desc "Remove .enc files and restore originals"
+
+        def call(**)
+          say "==============================================="
+          say "Removing encrypted files for #{name}"
+          say "==============================================="
+
+          run <<~BASH
+            for enc_file in $(find . -name "*.enc"); do
+              rm -f $enc_file
+              git checkout ${enc_file%.enc}.rb
+            done
+          BASH
+        end
+      end
+
       class ReleaseAll < BaseCommand
         # all the gems that will be released
         GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
-        # gem that will be used to build the evocation loaders and will ship them
-        # I chose avo-dashboards because it's the gem that is a dependency for all the other gems
-        # We could use avo as well, maybe in the future we will use it
-        LOADER_HOLDER = "avo-licensing"
         # gems that will be encrypted using the holder gem's key and loaders
         GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
@@ -229,89 +350,34 @@ module Buddy
           end
 
           time_prepare_release_start = Time.now
-          GEMS.each do |gem|
-            Dir.chdir(gem) do
-              say "==============================================="
-              say "PREPARE RELEASE & BUMP VERSION for #{gem}"
-              say "==============================================="
-              run("rm -rf ./pkg/*")
-
-              if Dir.exist?("app/assets/builds")
-                run("rm -rf app/assets/builds/*")
-                run("touch app/assets/builds/.keep")
-              end
-
-              unless skip_bump
-                Bump.new.call level:
-              end
-
-              if File.exist?("package.json")
-                run("rm -rf node_modules")
-                run("yarn --silent")
-                run("yarn build")
-
-                # Avo needs to build the assets again because sym_link requires application.css to be present
-                # This is a temporary solution until we have a better way to handle this
-                if gem == "avo"
-                  run("rails avo:sym_link")
-
-                  if Dir.exist?("app/assets/builds")
-                    run("rm -rf app/assets/builds/*")
-                    run("touch app/assets/builds/.keep")
-                  end
-
-                  run("rm -rf node_modules")
-                  run("yarn")
-                  run("yarn build")
-                end
-              end
-            end
+          parallelize(GEMS, label: "Prepare release") do |gem|
+            Dir.chdir(gem) { PrepareRelease.new.call level:, skip_bump: }
           end
           time_prepare_release_end = Time.now
 
           time_encrypt_gems_start = Time.now
-          GEMS_TO_ENCRYPT.each do |gem|
-            Dir.chdir(gem) do
-              say "==================================================================="
-              say "Encrypting #{gem} using #{LOADER_HOLDER}'s key and loaders"
-              say "==================================================================="
-              run("evocation encrypt gem #{gem}.gemspec --key_path ../#{LOADER_HOLDER}/.evocation/symmetric_key.bin --loader_gem #{LOADER_HOLDER}")
-            end
+          parallelize(GEMS_TO_ENCRYPT, label: "Encrypt") do |gem|
+            Dir.chdir(gem) { Encrypt.new.call }
           end
           time_encrypt_gems_end = Time.now
 
           time_build_gems_start = Time.now
-          GEMS.each do |gem|
-            Dir.chdir(gem) do
-              say "==============================================="
-              say "BUILD #{gem}"
-              say "==============================================="
-              run("bundle exec rails build")
-            end
+          parallelize(GEMS, label: "Build") do |gem|
+            Dir.chdir(gem) { BuildGem.new.call }
           end
           time_build_gems_end = Time.now
 
           time_appraisal_start = Time.now
-          GEMS_TO_ENCRYPT.each do |gem|
-            Dir.chdir(gem) do
-              say "==============================================="
-              say "APPRAISAL for #{gem}"
-              say "==============================================="
-              run("bundle exec appraisal")
-
-              say "==============================================="
-              say "Removing encrypted files for #{gem}"
-              say "==============================================="
-
-              run <<~BASH
-                for enc_file in $(find . -name "*.enc"); do
-                  rm -f $enc_file
-                  git checkout ${enc_file%.enc}.rb
-                done
-              BASH
-            end
+          parallelize(GEMS_TO_ENCRYPT, label: "Appraisal") do |gem|
+            Dir.chdir(gem) { Appraise.new.call }
           end
           time_appraisal_end = Time.now
+
+          time_cleanup_encrypted_start = Time.now
+          parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
+            Dir.chdir(gem) { CleanupEncrypted.new.call }
+          end
+          time_cleanup_encrypted_end = Time.now
 
           # say "Gems are encrypted and ready to be pushed, do you want to continue? (y/n)"
           # answer = STDIN.gets.chomp
@@ -322,18 +388,13 @@ module Buddy
           # Exclude avo because it's already pushed to rubygems.org
           # Only after public release of avo, for now we push it to github packages
           time_push_start = Time.now
-          GEMS.each do |gem|
-            Dir.chdir(gem) do
-              say "==============================================="
-              say "Pushing #{gem} to github packages"
-              say "==============================================="
-              `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gem}-*.gem`
-            end
+          parallelize(GEMS, label: "Push") do |gem|
+            Dir.chdir(gem) { Push.new.call only_push_to_github: true }
           end
           time_push_end = Time.now
 
           time_commit_start = Time.now
-          GEMS.each do |gem|
+          parallelize(GEMS, label: "Commit") do |gem|
             Dir.chdir(gem) do
               say "==============================================="
               say "Commiting #{gem} to GitHub"
@@ -349,7 +410,8 @@ module Buddy
           say "Time taken to prepare release: #{time_prepare_release_end - time_prepare_release_start} seconds"
           say "Time taken to encrypt all gems: #{time_encrypt_gems_end - time_encrypt_gems_start} seconds"
           say "Time taken to build gems: #{time_build_gems_end - time_build_gems_start} seconds"
-          say "Time taken to appraisal + remove encrypted files: #{time_appraisal_end - time_appraisal_start} seconds"
+          say "Time taken to appraisal: #{time_appraisal_end - time_appraisal_start} seconds"
+          say "Time taken to cleanup encrypted files: #{time_cleanup_encrypted_end - time_cleanup_encrypted_start} seconds"
           say "Time taken to push gems: #{time_push_end - time_push_start} seconds"
           say "Time taken to commit gems: #{time_commit_end - time_commit_start} seconds"
         end
@@ -455,7 +517,7 @@ module Buddy
 
       register "version", Version, aliases: ["v", "-v", "--version"]
 
-      common_comands = ["bump", "build", "push", "commit", "release"]
+      common_comands = ["bump", "build", "push", "commit", "release", "prepare_release", "encrypt", "build_gem", "appraise", "cleanup_encrypted"]
 
       register "run", Run
       register "bump", Bump
@@ -463,6 +525,11 @@ module Buddy
       register "push", Push
       register "commit", Commit
       register "release", Release
+      register "prepare_release", PrepareRelease
+      register "encrypt", Encrypt
+      register "build_gem", BuildGem
+      register "appraise", Appraise
+      register "cleanup_encrypted", CleanupEncrypted
       register "release_all", ReleaseAll
       register "setup", Setup
 
