@@ -4,18 +4,13 @@ This repo is going to help us out to set up and continue working with Avo's mult
 
 See [this](https://avo-hq.notion.site/Avo-Dev-wiki-1bb5cfb19ef1444daee277a57d82d3b8) document to get started with Avo.
 
-```bash
-ln -s $PWD/support/bin/bud ~/bin/bud
-```
-
 ## Initial Setup
 
 #### Prerequisites
 
-1. The `~/bin` directory must be added to `$PATH`. Add this `export PATH="$PATH:$HOME/bin"` to your `.bashrc`, or `.bash_profile` to have that available.
-2. You must have Ruby 3.1 installed on your computer
-3. You must have PostgreSQL installed and running (`brew install postgresql@14`)
-4. You must have Docker installed and running
+1. You must have Ruby 3.1 installed on your computer
+2. You must have PostgreSQL installed and running (`brew install postgresql@14`)
+3. You must have Docker installed and running
 
 #### Setup
 
