@@ -24,16 +24,6 @@ chmod +x ./setup
 
 This will first install the `support` repo, add it to `~/bin`, then it will run the `bud setup` command which will clone all the repos, run `bundle install` and `yarn install`.
 
-#### Avo-3 temporary solution
-
-This script will clone the `avo` repo, not `avo-3`. You need to run these commands to make it work.
-
-```bash
-rm -rf avo
-git clone git@github.com:avo-hq/avo-3.git avo
-bud run yarn -g avo
-```
-
 Next, you can go into `testy` and run `bin/dev` to start the app.
 
 ## How to use the `bud` helper
