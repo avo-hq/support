@@ -42,9 +42,8 @@ def add_to_path(bin_dir)
     updated_files << config_file
   end
 
-  if updated_files.any?
-    puts `export PATH="#{bin_dir}:$PATH"`
-  end
+  # Update PATH for the remainder of this script
+  ENV['PATH'] = "#{bin_dir}:#{ENV['PATH']}"
 end
 
 say "Hi 👋"
