@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 # Use `bud`s Gemfile and bundler dependencies
-root = File.expand_path(File.join(__dir__))
+root = File.expand_path(File.join(__dir__, ".."))
 if File.file?(File.join(root, 'Gemfile.lock'))
   Dir.chdir(root) do
     require 'bundler/setup'
