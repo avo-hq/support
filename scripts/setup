@@ -12,16 +12,67 @@ def yellow(text)
   colorize(text, "\e[33m")
 end
 
+def add_to_path(bin_dir)
+  path_line = "export PATH=\"#{bin_dir}:$PATH\""
+
+  # All possible shell config files
+  config_files = [
+    "#{Dir.home}/.bashrc",
+    "#{Dir.home}/.bash_profile",
+    "#{Dir.home}/.zshrc",
+    "#{Dir.home}/.profile"
+  ]
+
+  updated_files = []
+
+  config_files.each do |config_file|
+    next unless File.exist?(config_file)
+
+    # Skip if already configured in this file
+    if File.read(config_file).include?(bin_dir)
+      say "#{bin_dir} is already configured in #{config_file}"
+      next
+    end
+
+    say "Adding #{bin_dir} to PATH in #{config_file}"
+    File.open(config_file, 'a') do |f|
+      f.puts "\n# Added by avo/support setup"
+      f.puts path_line
+    end
+    updated_files << config_file
+  end
+
+  if updated_files.any?
+    puts `export PATH="#{bin_dir}:$PATH"`
+  end
+end
+
 say "Hi 👋"
 
-puts `git clone https://github.com/avo-hq/support`
+if !Dir.exist?("support")
+  say "Cloning support repo"
+  puts `git clone https://github.com/avo-hq/support`
+end
 
 Dir.chdir "support" do
-  puts `bundle install`
-  puts `ln -s $PWD/bin/bud ~/bin/bud`
   home_dir = "#{Dir.home}/bin"
-  say "We made a symlink for the `bud` helper in the home dir `#{home_dir}`"
-  say "Make sure `#{home_dir}` is loaded in the $PATH."
+
+  if !Dir.exist?(home_dir)
+    say "Creating bin home directory `#{home_dir}`"
+    puts `mkdir -p #{home_dir}`
+  end
+
+  add_to_path(home_dir)
+
+  puts `bundle install`
+
+  if !File.exist?("#{home_dir}/bud")
+    say "Creating symlink for the `bud` helper in the home dir `#{home_dir}`"
+    puts `ln -s $PWD/bin/bud #{home_dir}/bud`
+  else
+    say "Symlink for the `bud` helper already exists in the home dir `#{home_dir}`"
+  end
+  
   say ""
   say "Testing `bud`"
   puts `bud --version`
