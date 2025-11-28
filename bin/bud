@@ -15,6 +15,7 @@ end
 require "dry/cli"
 require "active_support/all"
 require "yaml"
+require "json"
 require "tty-command"
 require "fileutils"
 require "bump"
@@ -47,6 +48,8 @@ module Buddy
         end
 
         def parallelize(items, label: nil, &block)
+          start_time = Time.now
+
           pids_to_items = {}
           items.each do |item|
             pid = Process.fork do
@@ -69,6 +72,8 @@ module Buddy
           end
 
           halt(message: "#{label || 'Parallel step'} failed for: #{failures.join(', ')}") if failures.any?
+
+          Time.now - start_time
         end
       end
 
@@ -228,7 +233,10 @@ module Buddy
           if File.exist?("package.json")
             # run("rm -rf node_modules")
             run("yarn --silent")
-            run("yarn build")
+
+            # Check if prod:build script exists, otherwise fallback to build
+            build_script = JSON.parse(File.read("package.json")).dig("scripts", "prod:build") ? "prod:build" : "build"
+            run("yarn #{build_script}")
 
             # Avo needs to build the assets again because sym_link requires application.css to be present
             # This is a temporary solution until we have a better way to handle this
@@ -242,7 +250,7 @@ module Buddy
 
               # run("rm -rf node_modules")
               run("yarn")
-              run("yarn build")
+              run("yarn #{build_script}")
             end
           end
         end
@@ -319,65 +327,73 @@ module Buddy
           desc: "Skip bumping the version.",
           default: false,
           required: false
-        option :skip_unstashed_changes,
-          aliases: ["-suc"],
-          type: :boolean,
-          desc: "Skip checking for unstashed changes.",
-          default: false,
+        option :major_version,
+          desc: "major version to release",
+          type: :string,
           required: false
 
-        def call(level:, skip_bump:, skip_unstashed_changes:, **)
-          time_start = Time.now
-          # Detect unstashed changes and show them to the user
-          unless skip_unstashed_changes
-            GEMS.each do |gem|
-              Dir.chdir(gem) do
-                files = `git status --porcelain`.split("\n")
-                if files.any?
-                  say "You have unstashed changes in #{gem}:"
-                  files.each do |file|
-                    say file
-                  end
+        def call(level:, skip_bump:, major_version: nil, **)
+          if major_version.nil?
+            say "Do you want to release avo 3 or avo 4? (3/4)"
+            major_version = STDIN.gets.chomp
+            if major_version == "4"
+              branch = "4-dev"
+            else
+              branch = "main"
+            end
+          end
 
-                  say "Would you like to continue anyway? (y/n)"
-                  answer = STDIN.gets.chomp
-                  if answer != "y"
-                    exit
-                  end
+          # Detect unstashed changes and show them to the user
+          GEMS.each do |gem|
+            Dir.chdir(gem) do
+              if `git branch --show-current`.chomp != branch
+                say "You are releasing #{gem} #{major_version}.x but you are not on the #{branch} branch. Please switch to the #{branch} branch and try again."
+                exit
+              end
+
+              files = `git status --porcelain`.split("\n")
+              if files.any?
+                say "You have unstashed changes in #{gem}:"
+                files.each do |file|
+                  say file
+                end
+
+                say "Would you like to continue anyway? (y/n)"
+                answer = STDIN.gets.chomp
+                if answer != "y"
+                  exit
                 end
               end
             end
           end
 
-          time_prepare_release_start = Time.now
-          parallelize(GEMS, label: "Prepare release") do |gem|
+          time_start = Time.now
+
+          time_prepare_release = parallelize(GEMS, label: "Prepare release") do |gem|
             Dir.chdir(gem) { PrepareRelease.new.call level:, skip_bump: }
           end
-          time_prepare_release_end = Time.now
 
-          time_encrypt_gems_start = Time.now
-          parallelize(GEMS_TO_ENCRYPT, label: "Encrypt") do |gem|
-            Dir.chdir(gem) { Encrypt.new.call }
+          time_encrypt_gems = 0
+          if major_version == "4"
+            time_encrypt_gems = parallelize(GEMS_TO_ENCRYPT, label: "Encrypt") do |gem|
+              Dir.chdir(gem) { Encrypt.new.call }
+            end
           end
-          time_encrypt_gems_end = Time.now
 
-          time_build_gems_start = Time.now
-          parallelize(GEMS, label: "Build") do |gem|
+          time_build_gems = parallelize(GEMS, label: "Build") do |gem|
             Dir.chdir(gem) { BuildGem.new.call }
           end
-          time_build_gems_end = Time.now
 
-          time_appraisal_start = Time.now
-          parallelize(GEMS_TO_ENCRYPT, label: "Appraisal") do |gem|
+          time_appraisal = parallelize(GEMS, label: "Appraisal") do |gem|
             Dir.chdir(gem) { Appraise.new.call }
           end
-          time_appraisal_end = Time.now
 
-          time_cleanup_encrypted_start = Time.now
-          parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
-            Dir.chdir(gem) { CleanupEncrypted.new.call }
+          time_cleanup_encrypted = 0
+          if major_version == "4"
+            time_cleanup_encrypted = parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
+              Dir.chdir(gem) { CleanupEncrypted.new.call }
+            end
           end
-          time_cleanup_encrypted_end = Time.now
 
           # say "Gems are encrypted and ready to be pushed, do you want to continue? (y/n)"
           # answer = STDIN.gets.chomp
@@ -387,33 +403,31 @@ module Buddy
 
           # Exclude avo because it's already pushed to rubygems.org
           # Only after public release of avo, for now we push it to github packages
-          time_push_start = Time.now
-          parallelize(GEMS, label: "Push") do |gem|
-            Dir.chdir(gem) { Push.new.call only_push_to_github: true }
+          time_push = parallelize(GEMS, label: "Push") do |gem|
+            Dir.chdir(gem) { Push.new.call only_push_to_github: major_version == "4" }
           end
-          time_push_end = Time.now
 
-          time_commit_start = Time.now
-          parallelize(GEMS, label: "Commit") do |gem|
+          time_commit = parallelize(GEMS, label: "Commit") do |gem|
             Dir.chdir(gem) do
               say "==============================================="
               say "Commiting #{gem} to GitHub"
               say "==============================================="
               # Don't tag for now
-              Commit.new.call gem: gem, tag: false
+              Commit.new.call gem: gem, tag: major_version == "3"
             end
           end
-          time_commit_end = Time.now
-          time_end = Time.now
 
-          say "Total time taken: #{time_end - time_start} seconds"
-          say "Time taken to prepare release: #{time_prepare_release_end - time_prepare_release_start} seconds"
-          say "Time taken to encrypt all gems: #{time_encrypt_gems_end - time_encrypt_gems_start} seconds"
-          say "Time taken to build gems: #{time_build_gems_end - time_build_gems_start} seconds"
-          say "Time taken to appraisal: #{time_appraisal_end - time_appraisal_start} seconds"
-          say "Time taken to cleanup encrypted files: #{time_cleanup_encrypted_end - time_cleanup_encrypted_start} seconds"
-          say "Time taken to push gems: #{time_push_end - time_push_start} seconds"
-          say "Time taken to commit gems: #{time_commit_end - time_commit_start} seconds"
+          time_end = Time.now
+          time_total = time_end - time_start
+
+          say "Total time taken: #{time_total.round(2)} seconds, #{time_total.round(2) / 60} minutes"
+          say "Time taken to prepare release: #{time_prepare_release.round(2)} seconds, #{time_prepare_release.round(2) / 60} minutes"
+          say "Time taken to encrypt all gems: #{time_encrypt_gems.round(2)} seconds, #{time_encrypt_gems.round(2) / 60} minutes"
+          say "Time taken to build gems: #{time_build_gems.round(2)} seconds, #{time_build_gems.round(2) / 60} minutes"
+          say "Time taken to appraisal: #{time_appraisal.round(2)} seconds, #{time_appraisal.round(2) / 60} minutes"
+          say "Time taken to cleanup encrypted files: #{time_cleanup_encrypted.round(2)} seconds, #{time_cleanup_encrypted.round(2) / 60} minutes"
+          say "Time taken to push gems: #{time_push.round(2)} seconds, #{time_push.round(2) / 60} minutes"
+          say "Time taken to commit gems: #{time_commit.round(2)} seconds, #{time_commit.round(2) / 60} minutes"
         end
       end
 
