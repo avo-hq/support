@@ -46,5 +46,10 @@ RUN yarn check --integrity
 # Build assets
 RUN yarn build
 
+RUN bundle update rake
+RUN cd ../evocation && rake install
+
+RUN EVOCATION_DIR="/evocation" RCD_MOUNTDIR=$(pwd)/.. evocation spellbind avo-dashboards.gemspec
+
 # Build gem
 RUN bundle exec rails build
