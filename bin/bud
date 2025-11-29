@@ -33,10 +33,12 @@ module Buddy
       extend Dry::CLI::Registry
 
       class BaseCommand < Dry::CLI::Command
-        def run(command)
-          result = cmd.run(command)
-          halt if result.failed?
-          result
+        def run(command, **options)
+          Bundler.with_unbundled_env do
+            result = cmd.run(command, **options)
+            halt if result.failed?
+            result
+          end
         rescue TTY::Command::ExitError => e
           halt
         end
@@ -44,7 +46,7 @@ module Buddy
         def halt(message: nil)
           message ||= "#{self.class} failed."
           yell message
-          exit
+          exit 1
         end
 
         def parallelize(items, label: nil, &block)
@@ -96,6 +98,20 @@ module Buddy
 
           run("bundle --quiet")
 
+          say message(version)
+        end
+      end
+
+      class BumpVersionOnly < BaseCommand
+        desc "Bump gem version only (no bundle)"
+
+        argument :level, desc: "major|minor|patch|pre"
+
+        def call(level: "minor", **)
+          say "==============================================="
+          say "BUMP VERSION for #{name}"
+          say "==============================================="
+          version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
           say message(version)
         end
       end
@@ -369,8 +385,22 @@ module Buddy
 
           time_start = Time.now
 
+          # Phase 0: Run bundle install in all gems
+          time_bundle_install = parallelize(GEMS, label: "Bundle install") do |gem|
+            Dir.chdir(gem) { run("bundle install") }
+          end
+
+          # Phase 1: Bump all versions first (parallel - safe since only modifies version.rb files)
+          time_bump_versions = 0
+          unless skip_bump
+            time_bump_versions = parallelize(GEMS, label: "Bump versions") do |gem|
+              Dir.chdir(gem) { BumpVersionOnly.new.call level: }
+            end
+          end
+
+          # Phase 2: Prepare releases (parallel - now safe since all versions are consistent)
           time_prepare_release = parallelize(GEMS, label: "Prepare release") do |gem|
-            Dir.chdir(gem) { PrepareRelease.new.call level:, skip_bump: }
+            Dir.chdir(gem) { PrepareRelease.new.call level:, skip_bump: true }
           end
 
           time_encrypt_gems = 0
@@ -421,6 +451,8 @@ module Buddy
           time_total = time_end - time_start
 
           say "Total time taken: #{time_total.round(2)} seconds, #{time_total.round(2) / 60} minutes"
+          say "Time taken to bundle install: #{time_bundle_install.round(2)} seconds, #{time_bundle_install.round(2) / 60} minutes"
+          say "Time taken to bump versions: #{time_bump_versions.round(2)} seconds, #{time_bump_versions.round(2) / 60} minutes"
           say "Time taken to prepare release: #{time_prepare_release.round(2)} seconds, #{time_prepare_release.round(2) / 60} minutes"
           say "Time taken to encrypt all gems: #{time_encrypt_gems.round(2)} seconds, #{time_encrypt_gems.round(2) / 60} minutes"
           say "Time taken to build gems: #{time_build_gems.round(2)} seconds, #{time_build_gems.round(2) / 60} minutes"
@@ -531,10 +563,11 @@ module Buddy
 
       register "version", Version, aliases: ["v", "-v", "--version"]
 
-      common_comands = ["bump", "build", "push", "commit", "release", "prepare_release", "encrypt", "build_gem", "appraise", "cleanup_encrypted"]
+      common_comands = ["bump", "bump_version_only", "build", "push", "commit", "release", "prepare_release", "encrypt", "build_gem", "appraise", "cleanup_encrypted"]
 
       register "run", Run
       register "bump", Bump
+      register "bump_version_only", BumpVersionOnly
       register "build", Build
       register "push", Push
       register "commit", Commit
