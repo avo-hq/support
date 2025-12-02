@@ -62,6 +62,15 @@ We run `commit` last so we are sure that the build went through successfully.
 
 **Warning** `bud` doesn't yet check that the `build`, or `push` commands executed successfully. You should keep an eye on the logs.
 
+### `bud release_all`
+
+Releases all gems at once. This parallelizes each step (like bundling, asset compilation, etc.) across all gems simultaneously.
+
+```bash
+bud release_all patch # for a patch release
+bud release_all minor # for a minor release
+```
+
 ### `bud run`
 
 This is a helper command to run something in one or all gem directories.
