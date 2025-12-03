@@ -1,29 +1,47 @@
 #!/usr/bin/env ruby
 
-# Use `bud`s Gemfile and bundler dependencies
-root = File.expand_path(File.join(__dir__, ".."))
-if File.file?(File.join(root, 'Gemfile.lock'))
-  Dir.chdir(root) do
-    require 'bundler/setup'
-  rescue LoadError => e
-    warn e.message
-    warn "Run `gem install bundler` to install Bundler"
-    exit(-1)
-  end
+require "bundler/inline"
+
+gemfile do 
+  source "https://rubygems.org"
+
+  ### bud gems
+  gem "awesome_print"
+  gem "dry-initializer"
+  gem "activesupport", "> 7.0.4", "< 7.1.0"
+  gem "dry-cli"
+  gem "paint"
+  gem "tty-command"
+  gem "bump"
+  gem "gem-release"
+  gem "bigdecimal"
+  gem "mutex_m"
+  gem "logger"
+  gem "benchmark"
 end
 
-require "dry/cli"
+
+# require "dry/cli"
 require "active_support/all"
-require "yaml"
-require "json"
-require "tty-command"
-require "fileutils"
-require "bump"
-require "pathname"
-require "rubygems"
+# require "yaml"
+# require "json"
+# require "tty-command"
+# require "fileutils"
+# require "bump"
+# require "pathname"
+# require "rubygems"
 require_relative "support"
 
 DOCKER_PROGRESS = "auto" # auto|plain
+
+GEMS_TO_ENCRYPT = [
+  "avo-dashboards",
+  "avo-menu",
+  "avo-pro",
+  "avo-dynamic_filters",
+  "avo-advanced",
+  "avo-licensing"
+].freeze
 
 module Buddy
   VERSION = "0.0.1"
@@ -33,9 +51,9 @@ module Buddy
       extend Dry::CLI::Registry
 
       class BaseCommand < Dry::CLI::Command
-        def run(command, **options)
+        def run(command, cmd_options: {}, **options)
           Bundler.with_unbundled_env do
-            result = cmd.run(command, **options)
+            result = cmd(**cmd_options).run(command, chdir: @path, **options)
             halt if result.failed?
             result
           end
@@ -47,6 +65,29 @@ module Buddy
           message ||= "#{self.class} failed."
           yell message
           exit 1
+        end
+
+        def benchmark_phase(label)
+          start_time = Time.now
+          yield
+          Time.now - start_time
+        end
+
+        def print_timing_table(timings, total_time)
+          puts "\n"
+          puts "┌─────────────────────┬────────────┬─────────────┐"
+          puts "│ Phase               │ Seconds    │ Minutes     │"
+          puts "├─────────────────────┼────────────┼─────────────┤"
+          timings.each do |label, time|
+            secs = time.round(2).to_s.ljust(10)
+            mins = (time / 60).round(2).to_s.ljust(11)
+            puts "│ #{label.ljust(19)} │ #{secs} │ #{mins} │"
+          end
+          puts "├─────────────────────┼────────────┼─────────────┤"
+          secs = total_time.round(2).to_s.ljust(10)
+          mins = (total_time / 60).round(2).to_s.ljust(11)
+          puts "│ #{"Total".ljust(19)} │ #{secs} │ #{mins} │"
+          puts "└─────────────────────┴────────────┴─────────────┘"
         end
 
         def parallelize(items, label: nil, &block)
@@ -96,23 +137,44 @@ module Buddy
         def call(level: "minor", gem: nil, **)
           version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
 
-          run("bundle --quiet")
-
-          say message(version)
+          say bump_message(version)
         end
       end
 
-      class BumpVersionOnly < BaseCommand
-        desc "Bump gem version only (no bundle)"
+      class Encrypt < BaseCommand
+        desc "Encrypt gem files using holder's key and loaders"
 
-        argument :level, desc: "major|minor|patch|pre"
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+        def call(gem: nil, **)
+          return unless gem.in?(GEMS_TO_ENCRYPT)
+          return if version.start_with?("1.") || version.start_with?("2.") || version.start_with?("3.")
 
-        def call(level: "minor", **)
-          say "==============================================="
-          say "BUMP VERSION for #{name}"
-          say "==============================================="
-          version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
-          say message(version)
+          run("evocation encrypt gem #{gemspec_name}.gemspec --key_path ../avo-licensing/.evocation/symmetric_key.bin --loader_gem avo-licensing")
+        end
+      end
+
+      class CleanupEncrypted < BaseCommand
+        desc "Remove .enc files and restore originals"
+
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+
+        def call(gem: nil, **)
+          return unless gem.in?(GEMS_TO_ENCRYPT)
+          return if version.start_with?("1.") || version.start_with?("2.") || version.start_with?("3.")
+
+          run <<~BASH
+            for enc_file in $(find . -name "*.enc"); do
+              rm -f $enc_file
+              git checkout ${enc_file%.enc}.rb
+            done
+          BASH
+        end
+      end
+      class Appraise < BaseCommand
+        desc "Run appraisal"
+
+        def call(**)
+          run("bundle exec appraisal")
         end
       end
 
@@ -120,40 +182,12 @@ module Buddy
         desc "Build the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+        option :all, type: :boolean, default: false, desc: "Build the gem in all gems."
 
-        def call(gem: nil, forced_avo_version: nil, **)
-          FileUtils.mkdir_p "pkg"
+        def call(gem: nil, all: false, **)
+          run("rm -rf ./pkg/*")
 
-          avo_version = forced_avo_version || avo_gem_version
-
-          say "avo version: #{avo_version}"
-
-          remove_previous_gem
-
-          # We prepare these files so the cache does not get busted once the version is incremented in Gemfile.lock
-          add_v1_files
-
-          # Build the base image
-          run("docker build -t avo_base -f ./../support/docker/Dockerfile.base ./../avo --progress #{DOCKER_PROGRESS}")
-          # Build the image with Avo included
-          run("docker build -t avo_gems -f ./../support/docker/Dockerfile.gems ./.. --progress #{DOCKER_PROGRESS}")
-          say "Base Docker image built"
-
-          # For Avo we use a special Dockerfile and building from the root directory
-          dockerfile = (name == "avo") ? "Dockerfile.avo" : "Dockerfile"
-          build_path = (name == "avo") ? "../." : "."
-
-          # Build the build image
-          say "Building Docker image"
-          run("docker build -t #{name} -f ./../support/docker/#{dockerfile} #{build_path} --progress #{DOCKER_PROGRESS} --build-arg NAME=#{name} --build-arg GEMSPEC_NAME=#{gemspec_name} --build-arg BUNDLER_TOKEN=#{bundler_token} --build-arg AVO_VERSION=#{avo_version}")
-          say "Docker image built"
-
-          src = "/#{name}/pkg/#{gemspec_name}-#{version}.gem"
-
-          run "docker cp #{image_id}:#{src} #{destination_path}"
-          say "Copied gem from docker image to #{destination_path}"
-
-          run("bundle exec appraisal")
+          run("bundle exec rails build && mv ./pkg/*.gem #{destination_path}")
         end
       end
 
@@ -162,12 +196,8 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
-        def call(gem: nil, only_push_to_github: false, **)
-          say "==============================================="
-          say "Pushing #{name}"
-          say "==============================================="
-
-          if gemspec_name == "avo" && !only_push_to_github
+        def call(gem: nil, **)
+          if gemspec_name == "avo" && !version.start_with?("4.")
             `gem push --host https://rubygems.org/ ./pkg/#{gemspec_name}.gem`
           else
             `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
@@ -178,9 +208,11 @@ module Buddy
       class Commit < BaseCommand
         desc "Commit the version change"
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+        option :tag, type: :boolean, default: true, desc: "Tag the version."
+        option :origin, default: "main", desc: "The origin branch to push to."
 
-        def call(gem: nil, tag: true, **)
-          if name == "avo"
+        def call(gem: nil, tag: true, origin: "main", **)
+          if gem == "avo"
             `git add ./lib/avo/version.rb`
           else
             `git add ./lib/avo/#{name}/version.rb`
@@ -191,61 +223,273 @@ module Buddy
 
           tag_name = "v#{version}"
 
-          `git commit -m "#{message(version)}"`
+          `git commit -m "#{bump_message(version)}"`
           if tag
-            `git tag -a -m "#{message(version)}" #{tag_name}`
+            `git tag -a -m "#{bump_message(version)}" #{tag_name}`
           end
 
-          `git push origin main --follow-tags`
+          `git push origin #{origin} --follow-tags`
         end
       end
 
       class Release < BaseCommand
         desc "Release the gem"
 
+        # all the gems that will be released
+        GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
+        option :all, type: :boolean, default: false, desc: "Release all gems."
         argument :level, desc: "major|minor|patch|pre"
 
-        def call(gem: nil, skip_bump: false, level: "patch", **)
-          # 1. Bump gem version
-          if skip_bump
-            # Run bundle to increment the version number in Gemfile.lock
-            run("bundle")
+        def call(gem: nil, skip_bump: false, level: "patch", all: false, **)
+          if all
+            say "Do you want to release avo 3 or avo 4? (3/4)"
+            major_version = STDIN.gets.chomp
+            if major_version == "4"
+              branch = "4-dev"
+            else
+              branch = "main"
+            end
+  
+            # Detect unstashed changes and show them to the user
+            GEMS.each do |gem|
+              chdir_to_gem(gem) do
+                if `git branch --show-current`.chomp != branch
+                  say "You are releasing #{gem} #{major_version}.x but you are not on the #{branch} branch. Please switch to the #{branch} branch and try again."
+                  exit
+                end
+  
+                files = `git status --porcelain`.split("\n")
+                if files.any?
+                  say "You have unstashed changes in #{gem}:"
+                  files.each do |file|
+                    say file
+                  end
+  
+                  say "Would you like to continue anyway? (y/n)"
+                  answer = STDIN.gets.chomp
+                  if answer != "y"
+                    exit
+                  end
+                end
+              end
+            end
+  
+            time_start = Time.now
+  
+            # Phase 1: Bump all versions
+            time_bump = if skip_bump
+              0
+            else
+              say "===================="
+              say "= Bumping versions ="
+              say "===================="
+              parallelize(GEMS, label: "Bump versions") do |gem|
+                run("bud bump #{level} --gem #{gem}", cmd_options: { printer: :quiet })
+              end
+            end
+
+            # Phase 2: Run bundle install in all gems to update versions and inter-dependencies
+            say "=================="
+            say "= Bundling gems ="
+            say "=================="
+            time_bundle = parallelize(GEMS, label: "Bundle install") do |gem|
+              run("bud bundle --gem #{gem}", cmd_options: { printer: :quiet })
+            end
+
+            # Phase 3: Build assets
+            say "===================="
+            say "= Building assets ="
+            say "===================="
+            time_build_assets = parallelize(GEMS, label: "Build assets") do |gem|
+              run("bud build_assets --gem #{gem}", cmd_options: { printer: :quiet })
+            end
+
+            # Phase 4: Encrypt gems
+            say "===================="
+            say "= Encrypting gems ="
+            say "===================="
+            time_encrypt = parallelize(GEMS_TO_ENCRYPT, label: "Encrypt gems") do |gem|
+              run("bud encrypt --gem #{gem}", cmd_options: { printer: :quiet })
+            end
+  
+            # Phase 5: Build gems
+            say "===================="
+            say "= Building gems   ="
+            say "===================="
+            time_build_gems = parallelize(GEMS, label: "Build gems") do |gem|
+              run("bud build --gem #{gem}", cmd_options: { printer: :quiet })
+            end
+
+            # Phase 6: Cleanup encrypted files
+            say "==========================="
+            say "= Cleanup encrypted files ="
+            say "==========================="
+            time_cleanup_encrypted = parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
+              run("bud cleanup_encrypted --gem #{gem}", cmd_options: { printer: :quiet })
+            end
+
+            # Phase 7: Push gems
+            say "================"
+            say "= Pushing gems ="
+            say "================"
+            time_push = parallelize(GEMS, label: "Push") do |gem|
+              run("bud push --gem #{gem}")
+            end
+  
+            # Phase 8: Commit gems
+            say "==================="
+            say "= Committing gems ="
+            say "==================="
+            time_commit = parallelize(GEMS, label: "Commit") do |gem|
+              run("bud commit --gem #{gem} #{"--no-tag" if major_version == '4'} --origin #{branch}")
+            end
+  
+            time_end = Time.now
+            time_total = time_end - time_start
+  
+            # Build timing data
+            timings = [
+              ["Bump versions", time_bump],
+              ["Bundle install", time_bundle],
+              ["Build assets", time_build_assets],
+              ["Encrypt gems", time_encrypt],
+              ["Build gems", time_build_gems],
+              ["Cleanup encrypted", time_cleanup_encrypted],
+              ["Push gems", time_push],
+              ["Commit gems", time_commit]
+            ]
+
+            print_timing_table(timings, time_total)
           else
-            Bump.new.call level:
+            gem = gem || gemspec_name
+            major_version = version.split(".").first
+
+            if major_version == "4"
+              branch = "4-dev"
+            else
+              branch = "main"
+            end
+
+            files = `git status --porcelain`.split("\n")
+
+            if files.any?
+              say "You have unstashed changes in #{gem}:"
+              files.each do |file|
+                say file
+              end
+
+              say "Would you like to continue anyway? (y/n)"
+              answer = STDIN.gets.chomp
+              if answer != "y"
+                exit
+              end
+            end
+
+            time_start = Time.now
+
+            # Phase 1: Bump gem version
+            time_bump = if skip_bump
+              0
+            else
+              benchmark_phase("Bump version") do
+                say "===================="
+                say "= Bumping version ="
+                say "===================="
+                run("bud bump #{level} --gem #{gem}")
+              end
+            end
+
+            # Phase 2: Bundle
+            time_bundle = benchmark_phase("Bundle gem") do
+              say "================"
+              say "= Bundling gem ="
+              say "================"
+              run("bud bundle --gem #{gem}")
+            end
+
+            # Phase 3: Build assets
+            time_build_assets = benchmark_phase("Build assets") do
+              say "===================="
+              say "= Building assets ="
+              say "===================="
+              run("bud build_assets --gem #{gem}")
+            end
+
+            # Phase 4: Encrypt gems
+            time_encrypt = benchmark_phase("Encrypt gem") do
+              say "===================="
+              say "= Encrypting gems ="
+              say "===================="
+              run("bud encrypt --gem #{gem}")
+            end
+
+            # Phase 5: Build gems
+            time_build = benchmark_phase("Build gem") do
+              say "===================="
+              say "= Building gems   ="
+              say "===================="
+              run("bud build --gem #{gem}")
+            end
+
+            # Phase 6: Cleanup encrypted files
+            time_cleanup = benchmark_phase("Cleanup encrypted") do
+              say "==========================="
+              say "= Cleanup encrypted files ="
+              say "==========================="
+              run("bud cleanup_encrypted --gem #{gem}")
+            end
+
+            # Phase 7: Push gems
+            time_push = benchmark_phase("Push gem") do
+              say "================"
+              say "= Pushing gems ="
+              say "================"
+              run("bud push --gem #{gem}")
+            end
+
+            # Phase 8: Commit gems
+            time_commit = benchmark_phase("Commit gem") do
+              say "==================="
+              say "= Committing gems ="
+              say "==================="
+              run("bud commit --gem #{gem} #{"--no-tag" if major_version == '4'} --origin #{branch}")
+            end
+
+            time_total = Time.now - time_start
+
+            # Build timing data
+            timings = [
+              ["Bump version", time_bump],
+              ["Bundle gem", time_bundle],
+              ["Build assets", time_build_assets],
+              ["Encrypt gem", time_encrypt],
+              ["Build gem", time_build],
+              ["Cleanup encrypted", time_cleanup],
+              ["Push gem", time_push],
+              ["Commit gem", time_commit]
+            ]
+
+            print_timing_table(timings, time_total)
           end
-          # 2. Build the gem
-          Build.new.call
-          # 3. Push to GitHub packages
-          Push.new.call
-          # 4. commit & upload tag to git
-          #    GitHub action will generate the release with release notes
-          Commit.new.call
         end
       end
 
-      class PrepareRelease < BaseCommand
-        desc "Prepare release: clean, optional bump, build JS assets"
+      class BuildAssets < BaseCommand
+        desc "Build assets and clean the pkg directory"
 
-        argument :level, desc: "major|minor|patch|pre", default: "minor"
-        option :skip_bump, type: :boolean, default: false, desc: "Skip bumping the version."
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to build the assets on"
 
-        def call(level: "minor", skip_bump: false, **)
-          say "==============================================="
-          say "PREPARE RELEASE & BUMP VERSION for #{name}"
-          say "==============================================="
-          run("rm -rf ./pkg/*")
-
+        def call(gem: nil, all: false, **)
+          # 1. If exists, clean the app/assets/builds directory
           if Dir.exist?("app/assets/builds")
             run("rm -rf app/assets/builds/*")
             run("touch app/assets/builds/.keep")
           end
 
-          unless skip_bump
-            Bump.new.call level:
-          end
-
+          # 2. If package.json exists, build the assets
           if File.exist?("package.json")
             # run("rm -rf node_modules")
             run("yarn --silent")
@@ -256,7 +500,7 @@ module Buddy
 
             # Avo needs to build the assets again because sym_link requires application.css to be present
             # This is a temporary solution until we have a better way to handle this
-            if name == "avo"
+            if gem == "avo"
               run("rails avo:sym_link")
 
               if Dir.exist?("app/assets/builds")
@@ -265,204 +509,12 @@ module Buddy
               end
 
               # run("rm -rf node_modules")
-              run("yarn")
+              run("yarn --silent")
               run("yarn #{build_script}")
             end
           end
         end
       end
-
-      class Encrypt < BaseCommand
-        desc "Encrypt gem files using holder's key and loaders"
-
-        option :loader_holder, required: false, default: "avo-licensing", desc: "Loader/holder gem name"
-
-        def call(loader_holder: "avo-licensing", **)
-          say "==================================================================="
-          say "Encrypting #{name} using #{loader_holder}'s key and loaders"
-          say "==================================================================="
-          run("evocation encrypt gem #{gemspec_name}.gemspec --key_path ../#{loader_holder}/.evocation/symmetric_key.bin --loader_gem #{loader_holder}")
-        end
-      end
-
-      class BuildGem < BaseCommand
-        desc "Build gem artifacts (rails build)"
-
-        def call(**)
-          say "==============================================="
-          say "BUILD #{name}"
-          say "==============================================="
-          run("bundle exec rails build && mv ./pkg/*.gem #{destination_path}")
-        end
-      end
-
-      class Appraise < BaseCommand
-        desc "Run appraisal"
-
-        def call(**)
-          say "==============================================="
-          say "APPRAISAL for #{name}"
-          say "==============================================="
-          run("bundle exec appraisal")
-        end
-      end
-
-      class CleanupEncrypted < BaseCommand
-        desc "Remove .enc files and restore originals"
-
-        def call(**)
-          say "==============================================="
-          say "Removing encrypted files for #{name}"
-          say "==============================================="
-
-          run <<~BASH
-            for enc_file in $(find . -name "*.enc"); do
-              rm -f $enc_file
-              git checkout ${enc_file%.enc}.rb
-            done
-          BASH
-        end
-      end
-
-      class ReleaseAll < BaseCommand
-        # all the gems that will be released
-        GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
-
-        # gems that will be encrypted using the holder gem's key and loaders
-        GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
-
-        desc "Release #{GEMS.join(", ")}"
-
-        argument :level,
-          desc: "major|minor|patch|pre",
-          default: "minor",
-          required: false
-        option :skip_bump,
-          aliases: ["-sb"],
-          type: :boolean,
-          desc: "Skip bumping the version.",
-          default: false,
-          required: false
-        option :major_version,
-          desc: "major version to release",
-          type: :string,
-          required: false
-
-        def call(level:, skip_bump:, major_version: nil, **)
-          if major_version.nil?
-            say "Do you want to release avo 3 or avo 4? (3/4)"
-            major_version = STDIN.gets.chomp
-            if major_version == "4"
-              branch = "4-dev"
-            else
-              branch = "main"
-            end
-          end
-
-          # Detect unstashed changes and show them to the user
-          GEMS.each do |gem|
-            Dir.chdir(gem) do
-              if `git branch --show-current`.chomp != branch
-                say "You are releasing #{gem} #{major_version}.x but you are not on the #{branch} branch. Please switch to the #{branch} branch and try again."
-                exit
-              end
-
-              files = `git status --porcelain`.split("\n")
-              if files.any?
-                say "You have unstashed changes in #{gem}:"
-                files.each do |file|
-                  say file
-                end
-
-                say "Would you like to continue anyway? (y/n)"
-                answer = STDIN.gets.chomp
-                if answer != "y"
-                  exit
-                end
-              end
-            end
-          end
-
-          time_start = Time.now
-
-          # Phase 0: Run bundle install in all gems
-          time_bundle_install = parallelize(GEMS, label: "Bundle install") do |gem|
-            Dir.chdir(gem) { run("bundle install") }
-          end
-
-          # Phase 1: Bump all versions first (parallel - safe since only modifies version.rb files)
-          time_bump_versions = 0
-          unless skip_bump
-            time_bump_versions = parallelize(GEMS, label: "Bump versions") do |gem|
-              Dir.chdir(gem) { BumpVersionOnly.new.call level: }
-            end
-          end
-
-          # Phase 2: Prepare releases (parallel - now safe since all versions are consistent)
-          time_prepare_release = parallelize(GEMS, label: "Prepare release") do |gem|
-            Dir.chdir(gem) { PrepareRelease.new.call level:, skip_bump: true }
-          end
-
-          time_encrypt_gems = 0
-          if major_version == "4"
-            time_encrypt_gems = parallelize(GEMS_TO_ENCRYPT, label: "Encrypt") do |gem|
-              Dir.chdir(gem) { Encrypt.new.call }
-            end
-          end
-
-          time_build_gems = parallelize(GEMS, label: "Build") do |gem|
-            Dir.chdir(gem) { BuildGem.new.call }
-          end
-
-          time_appraisal = parallelize(GEMS, label: "Appraisal") do |gem|
-            Dir.chdir(gem) { Appraise.new.call }
-          end
-
-          time_cleanup_encrypted = 0
-          if major_version == "4"
-            time_cleanup_encrypted = parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
-              Dir.chdir(gem) { CleanupEncrypted.new.call }
-            end
-          end
-
-          # say "Gems are encrypted and ready to be pushed, do you want to continue? (y/n)"
-          # answer = STDIN.gets.chomp
-          # if answer != "y"
-          #   exit
-          # end
-
-          # Exclude avo because it's already pushed to rubygems.org
-          # Only after public release of avo, for now we push it to github packages
-          time_push = parallelize(GEMS, label: "Push") do |gem|
-            Dir.chdir(gem) { Push.new.call only_push_to_github: major_version == "4" }
-          end
-
-          time_commit = parallelize(GEMS, label: "Commit") do |gem|
-            Dir.chdir(gem) do
-              say "==============================================="
-              say "Commiting #{gem} to GitHub"
-              say "==============================================="
-              # Don't tag for now
-              Commit.new.call gem: gem, tag: major_version == "3"
-            end
-          end
-
-          time_end = Time.now
-          time_total = time_end - time_start
-
-          say "Total time taken: #{time_total.round(2)} seconds, #{time_total.round(2) / 60} minutes"
-          say "Time taken to bundle install: #{time_bundle_install.round(2)} seconds, #{time_bundle_install.round(2) / 60} minutes"
-          say "Time taken to bump versions: #{time_bump_versions.round(2)} seconds, #{time_bump_versions.round(2) / 60} minutes"
-          say "Time taken to prepare release: #{time_prepare_release.round(2)} seconds, #{time_prepare_release.round(2) / 60} minutes"
-          say "Time taken to encrypt all gems: #{time_encrypt_gems.round(2)} seconds, #{time_encrypt_gems.round(2) / 60} minutes"
-          say "Time taken to build gems: #{time_build_gems.round(2)} seconds, #{time_build_gems.round(2) / 60} minutes"
-          say "Time taken to appraisal: #{time_appraisal.round(2)} seconds, #{time_appraisal.round(2) / 60} minutes"
-          say "Time taken to cleanup encrypted files: #{time_cleanup_encrypted.round(2)} seconds, #{time_cleanup_encrypted.round(2) / 60} minutes"
-          say "Time taken to push gems: #{time_push.round(2)} seconds, #{time_push.round(2) / 60} minutes"
-          say "Time taken to commit gems: #{time_commit.round(2)} seconds, #{time_commit.round(2) / 60} minutes"
-        end
-      end
-
       class Run < BaseCommand
         desc "Run a command"
 
@@ -474,18 +526,28 @@ module Buddy
           if gem
             say "Running '#{command}' in #{gem}"
 
-            cmd.run(command)
+            run(command)
           elsif all
-            say gems.inspect
-            gems.each do |gem, path|
-              say path
-              say "Running `#{command}` in #{path}"
-
-              cmd.run(command, chdir: path.to_s)
+            parallelize(gems.keys, label: "Running command in all gems") do |gem|
+              chdir_to_gem(gem) {
+                say "Running `#{command}` in #{gem}"
+                run(command)
+              }
             end
           else
             say "You must run this command with `--gem GEM_NAME` or `--all`"
           end
+        end
+      end
+
+      class Bundle < BaseCommand
+        desc "Run bundle install"
+
+        option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
+
+        def call(gem: nil, all: false, **)
+          run("bundle install --quiet")
+          run("bundle exec appraisal")
         end
       end
 
@@ -536,18 +598,11 @@ module Buddy
         if args[:gem]
           gem_name = (args[:gem] == "avo") ? args[:gem] : "avo-#{args[:gem].gsub("avo-", "")}"
 
-          if Dir.exist?(gem_name)
-            Dir.chdir(gem_name)
-            say "Running command in #{gem_name}"
-            # update the args to have the full gem name
-            # EX: if the user passes "--gem dashboards", the gem is transformed to "avo-dashboards"
+          begin
+            chdir_to_gem(gem_name)
             args[:gem] = gem_name
-          elsif Pathname.new("../#{gem_name}").directory?
-            # If the user runs the command from the support or testy dirs, we should be able to continue to run the command
-            args[:gem] = gem_name
-            Dir.chdir(Pathname.new("../#{gem_name}"))
-            say "Running command in #{Pathname.new("../#{gem_name}").realpath}"
-          else
+          rescue => e
+            say "Error: #{e.message}"
             say "Failed to find that gem."
             exit 0
           end
@@ -555,31 +610,29 @@ module Buddy
       end
 
       check_for_gem = lambda do |args|
-        if Dir.glob("*.gemspec").empty?
-          say "Failed to find a gem in the current directory. Stopping execution."
-          exit 0
-        end
+        return if args[:all]
+        return if @path.present? && Dir.exist?(@path) && Dir.glob("#{@path}/*.gemspec").any?
+        return if Dir.glob("*.gemspec").any?
+
+        say "Failed to find a gem in the current directory. Stopping execution."
+        exit 0
       end
 
       register "version", Version, aliases: ["v", "-v", "--version"]
 
-      common_comands = ["bump", "bump_version_only", "build", "push", "commit", "release", "prepare_release", "encrypt", "build_gem", "appraise", "cleanup_encrypted"]
+      common_comands = ["build", "bundle", "bump", "push", "commit", "release", "build_assets", "encrypt", "cleanup_encrypted"]
 
       register "run", Run
+      register "bundle", Bundle
       register "bump", Bump
-      register "bump_version_only", BumpVersionOnly
       register "build", Build
       register "push", Push
       register "commit", Commit
       register "release", Release
-      register "prepare_release", PrepareRelease
-      register "encrypt", Encrypt
-      register "build_gem", BuildGem
-      register "appraise", Appraise
-      register "cleanup_encrypted", CleanupEncrypted
-      register "release_all", ReleaseAll
+      register "build_assets", BuildAssets
       register "setup", Setup
-
+      register "encrypt", Encrypt
+      register "cleanup_encrypted", CleanupEncrypted
       before "run", &chdir
 
       common_comands.each do |c|

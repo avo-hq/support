@@ -48,22 +48,12 @@ def name
   gemspec_name.gsub("avo-", "")
 end
 
-def message(version = nil)
-  "Bumped #{name} to #{version}"
+def cmd(**options)
+  TTY::Command.new uuid: false, **options
 end
 
-def cmd
-  TTY::Command.new uuid: false
-end
-
-def add_v1_files
-  say "Preparing cache for the Docker build"
-  FileUtils.mkdir_p "tmp"
-  FileUtils.copy "./Gemfile.lock", "./tmp/Gemfile_v1.lock"
-  change_in_file "./tmp/Gemfile_v1.lock", /.*#{name} \(.*/, "    #{name} (1.0.0)"
-  version_file_path = gemspec.files.find { |file| file.ends_with? "/version.rb" }
-  FileUtils.copy version_file_path, "./tmp/version_v1.rb"
-  change_in_file "./tmp/version_v1.rb", /.*VERSION = .*/, "  VERSION = \"1.0.0\""
+def bump_message(version)
+  "Bumped #{gemspec_name} to #{version}"
 end
 
 def change_in_file(file, regex, text_to_put_in_place)
@@ -92,4 +82,26 @@ def gems
   YAML.load_file(yaml_path)["gems"].each do |gem, path|
     [gem, File.expand_path(path, Dir.pwd)]
   end.to_h
+end
+
+def gem_root_path
+  `readlink $(whereis bud)`.chomp.gsub("/support/bin/bud", "")
+end
+
+def gem_path(gem_name)
+  "#{gem_root_path}/#{gem_name}"
+end
+
+def chdir_to_gem(gem_name, &block)
+  @path = gem_path(gem_name)
+  if block_given?
+    Dir.chdir(@path) do
+      @path = gem_path(gem_name)
+      Bundler.with_unbundled_env do
+        instance_exec(&block)
+      end
+    end
+  else
+    Dir.chdir(@path)
+  end
 end
