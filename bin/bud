@@ -33,7 +33,15 @@ require "active_support/all"
 require_relative "support"
 
 DOCKER_PROGRESS = "auto" # auto|plain
-GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"].freeze
+
+GEMS_TO_ENCRYPT = [
+  "avo-dashboards",
+  "avo-menu",
+  "avo-pro",
+  "avo-dynamic_filters",
+  "avo-advanced",
+  "avo-licensing"
+].freeze
 
 module Buddy
   VERSION = "0.0.1"
@@ -57,6 +65,29 @@ module Buddy
           message ||= "#{self.class} failed."
           yell message
           exit 1
+        end
+
+        def benchmark_phase(label)
+          start_time = Time.now
+          yield
+          Time.now - start_time
+        end
+
+        def print_timing_table(timings, total_time)
+          puts "\n"
+          puts "┌─────────────────────┬────────────┬─────────────┐"
+          puts "│ Phase               │ Seconds    │ Minutes     │"
+          puts "├─────────────────────┼────────────┼─────────────┤"
+          timings.each do |label, time|
+            secs = time.round(2).to_s.ljust(10)
+            mins = (time / 60).round(2).to_s.ljust(11)
+            puts "│ #{label.ljust(19)} │ #{secs} │ #{mins} │"
+          end
+          puts "├─────────────────────┼────────────┼─────────────┤"
+          secs = total_time.round(2).to_s.ljust(10)
+          mins = (total_time / 60).round(2).to_s.ljust(11)
+          puts "│ #{"Total".ljust(19)} │ #{secs} │ #{mins} │"
+          puts "└─────────────────────┴────────────┴─────────────┘"
         end
 
         def parallelize(items, label: nil, &block)
@@ -331,22 +362,9 @@ module Buddy
               ["Commit gems", time_commit]
             ]
 
-            # Print table
-            puts "\n"
-            puts "┌─────────────────────┬────────────┬─────────────┐"
-            puts "│ Phase               │ Seconds    │ Minutes     │"
-            puts "├─────────────────────┼────────────┼─────────────┤"
-            timings.each do |label, time|
-              secs = time.round(2).to_s.ljust(10)
-              mins = (time / 60).round(2).to_s.ljust(11)
-              puts "│ #{label.ljust(19)} │ #{secs} │ #{mins} │"
-            end
-            puts "├─────────────────────┼────────────┼─────────────┤"
-            secs = time_total.round(2).to_s.ljust(10)
-            mins = (time_total / 60).round(2).to_s.ljust(11)
-            puts "│ #{"Total".ljust(19)} │ #{secs} │ #{mins} │"
-            puts "└─────────────────────┴────────────┴─────────────┘"
+            print_timing_table(timings, time_total)
           else
+            gem = gem || gemspec_name
             major_version = version.split(".").first
 
             if major_version == "4"
@@ -370,55 +388,91 @@ module Buddy
               end
             end
 
+            time_start = Time.now
+
             # Phase 1: Bump gem version
-            unless skip_bump
-              say "===================="
-              say "= Bumping version ="
-              say "===================="
-              run("bud bump #{level} --gem #{gem}")
+            time_bump = if skip_bump
+              0
+            else
+              benchmark_phase("Bump version") do
+                say "===================="
+                say "= Bumping version ="
+                say "===================="
+                run("bud bump #{level} --gem #{gem}")
+              end
             end
 
             # Phase 2: Bundle
-            say "================"
-            say "= Bundling gem ="
-            say "================"
-            run("bud bundle --gem #{gem}")
+            time_bundle = benchmark_phase("Bundle gem") do
+              say "================"
+              say "= Bundling gem ="
+              say "================"
+              run("bud bundle --gem #{gem}")
+            end
 
             # Phase 3: Build assets
-            say "===================="
-            say "= Building assets ="
-            say "===================="
-            run("bud build_assets --gem #{gem}")
+            time_build_assets = benchmark_phase("Build assets") do
+              say "===================="
+              say "= Building assets ="
+              say "===================="
+              run("bud build_assets --gem #{gem}")
+            end
 
             # Phase 4: Encrypt gems
-            say "===================="
-            say "= Encrypting gems ="
-            say "===================="
-            run("bud encrypt --gem #{gem}")
+            time_encrypt = benchmark_phase("Encrypt gem") do
+              say "===================="
+              say "= Encrypting gems ="
+              say "===================="
+              run("bud encrypt --gem #{gem}")
+            end
 
             # Phase 5: Build gems
-            say "===================="
-            say "= Building gems   ="
-            say "===================="
-            run("bud build --gem #{gem}")
+            time_build = benchmark_phase("Build gem") do
+              say "===================="
+              say "= Building gems   ="
+              say "===================="
+              run("bud build --gem #{gem}")
+            end
 
             # Phase 6: Cleanup encrypted files
-            say "==========================="
-            say "= Cleanup encrypted files ="
-            say "==========================="
-            run("bud cleanup_encrypted --gem #{gem}")
+            time_cleanup = benchmark_phase("Cleanup encrypted") do
+              say "==========================="
+              say "= Cleanup encrypted files ="
+              say "==========================="
+              run("bud cleanup_encrypted --gem #{gem}")
+            end
 
             # Phase 7: Push gems
-            say "================"
-            say "= Pushing gems ="
-            say "================"
-            run("bud push --gem #{gem}")
-  
+            time_push = benchmark_phase("Push gem") do
+              say "================"
+              say "= Pushing gems ="
+              say "================"
+              run("bud push --gem #{gem}")
+            end
+
             # Phase 8: Commit gems
-            say "==================="
-            say "= Committing gems ="
-            say "==================="
-            run("bud commit --gem #{gem} #{"--no-tag" if major_version == '4'} --origin #{branch}")
+            time_commit = benchmark_phase("Commit gem") do
+              say "==================="
+              say "= Committing gems ="
+              say "==================="
+              run("bud commit --gem #{gem} #{"--no-tag" if major_version == '4'} --origin #{branch}")
+            end
+
+            time_total = Time.now - time_start
+
+            # Build timing data
+            timings = [
+              ["Bump version", time_bump],
+              ["Bundle gem", time_bundle],
+              ["Build assets", time_build_assets],
+              ["Encrypt gem", time_encrypt],
+              ["Build gem", time_build],
+              ["Cleanup encrypted", time_cleanup],
+              ["Push gem", time_push],
+              ["Commit gem", time_commit]
+            ]
+
+            print_timing_table(timings, time_total)
           end
         end
       end
