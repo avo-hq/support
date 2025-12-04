@@ -34,16 +34,6 @@ require_relative "support"
 
 DOCKER_PROGRESS = "auto" # auto|plain
 
-GEMS_TO_ENCRYPT = [
-  "avo-dashboards",
-  "avo-menu",
-  "avo-pro",
-  "avo-dynamic_filters",
-  "avo-advanced",
-  "avo-licensing",
-  "avo-kanban"
-].freeze
-
 module Buddy
   VERSION = "0.0.1"
 
@@ -147,8 +137,7 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         def call(gem: nil, **)
-          return unless gem.in?(GEMS_TO_ENCRYPT)
-          return if version.start_with?("1.") || version.start_with?("2.") || version.start_with?("3.")
+          return unless File.exist?(".evocation/config.yml")
 
           run("evocation encrypt gem #{gemspec_name}.gemspec --key_path ../avo-licensing/.evocation/symmetric_key.bin --loader_gem avo-licensing")
         end
@@ -160,8 +149,7 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(gem: nil, **)
-          return unless gem.in?(GEMS_TO_ENCRYPT)
-          return if version.start_with?("1.") || version.start_with?("2.") || version.start_with?("3.")
+          return unless File.exist?(".evocation/config.yml")
 
           run <<~BASH
             for enc_file in $(find . -name "*.enc"); do
@@ -176,9 +164,8 @@ module Buddy
         desc "Build the gem"
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
-        option :all, type: :boolean, default: false, desc: "Build the gem in all gems."
 
-        def call(gem: nil, all: false, **)
+        def call(gem: nil, **)
           run("rm -rf ./pkg/*")
 
           run("bundle exec rails build && mv ./pkg/*.gem #{destination_path}")
@@ -231,6 +218,7 @@ module Buddy
 
         # all the gems that will be released
         GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+        GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
@@ -476,7 +464,7 @@ module Buddy
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to build the assets on"
 
-        def call(gem: nil, all: false, **)
+        def call(gem: nil, **)
           # 1. If exists, clean the app/assets/builds directory
           if Dir.exist?("app/assets/builds")
             run("rm -rf app/assets/builds/*")
@@ -512,9 +500,11 @@ module Buddy
       class Run < BaseCommand
         desc "Run a command"
 
+        GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
+
         argument :command, default: "bundle install", desc: "The command you'd like to run"
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
-        option :all, default: false, type: :boolean, desc: "Run the command in all gems."
+        option :all, default: false, type: :boolean, desc: "Run the command in all gems. (#{GEMS.join(", ")})"
 
         def call(command: "bundle install", gem: nil, all: false, **)
           if gem
@@ -522,7 +512,7 @@ module Buddy
 
             run(command)
           elsif all
-            parallelize(gems.keys, label: "Running command in all gems") do |gem|
+            parallelize(GEMS, label: "Running command in all gems") do |gem|
               chdir_to_gem(gem) {
                 say "Running `#{command}` in #{gem}"
                 run(command)

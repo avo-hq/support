@@ -32,6 +32,8 @@ Next, you can go into `testy` and run `bin/dev` to start the app.
 Most commands can be run inside a gem directory (`avo`, `avo-dynamic_filters`, etc.) and it will know to run it on that gem, or from any other directory with the `--gem` (or `-g`) argument and it will `cd` into the proper directory.
 Ex: `bud bump --gem avo-dynamic_filters`, `bud release -g avo-dashboards`.
 
+The `--gem` option searches for that gem in the parent directory of the support repository (where all gems are cloned).
+
 You can leave out the `avo-` prefix and it will add it.
 Ex: `bud bump -g dashboards`
 
@@ -71,7 +73,6 @@ Build the gem. This will generate a file in the gem's `pkg` directory.
 
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
-- `--all` - Build the gem in all gems
 
 ---
 
@@ -88,7 +89,7 @@ Build assets. This will:
 
 #### `bud bundle`
 
-Run `bundle install` and `bundle exec appraisal` on a gem.
+Run `bundle install` on a gem. If an `Appraisals` file exists, it will also run `bundle exec appraisal`.
 
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
@@ -121,7 +122,7 @@ This is the main release command. It runs commands in this order: `bump`, `bundl
 We run `commit` last so we are sure that the build went through successfully.
 
 **Arguments:**
-- `level` - The version level to bump: `major`, `minor`, `patch`, or `pre` (default: `patch`)
+- `level` - The version level to bump: `major`, `minor`, `patch`, or `pre` (default: `patch`, optional)
 
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
@@ -146,7 +147,7 @@ Encrypt gem files using holder's key and loaders. This is used for paid gems bef
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
 
-**Note:** Only runs on specific gems: `avo-dashboards`, `avo-menu`, `avo-pro`, `avo-dynamic_filters`, `avo-advanced`, `avo-licensing` or any specified on the `GEMS_TO_ENCRYPT` constant.
+**Note:** Only runs on gems that have a `.evocation/config.yml` file present.
 
 ---
 
@@ -156,6 +157,8 @@ Remove `.enc` files and restore originals after building the gem.
 
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
+
+**Note:** Only runs on gems that have a `.evocation/config.yml` file present.
 
 ---
 
@@ -168,16 +171,17 @@ A helper command to run something in one or all gem directories.
 
 **Options:**
 - `--gem`, `-g` - The gem where you want to run the command on
-- `--all` - Run the command in all gems
+- `--all` - Run the command in all main gems (`avo`, `avo-dashboards`, `avo-menu`, `avo-pro`, `avo-dynamic_filters`, `avo-advanced`)
 
 **Examples:**
 ```bash
-bud run "bundle install" --all     # Run in all repos
+bud run "bundle install" --all     # Run in all main gems
 bud run "yarn install" --gem dynamic_filters  # Run in avo-dynamic_filters
 bud run "git status" -g dashboards
+bud run "bundle update" -g avo-kanban  # Works with any gem, not just the main ones
 ```
 
-`bud` knows where all the gems are from the `support/gems.yml` file which we should manually update.
+**Note:** The `--all` flag runs on the predefined list of main gems. You can still use `-g` to target any gem directory, including those outside the main list.
 
 ---
 
