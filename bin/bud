@@ -40,7 +40,8 @@ GEMS_TO_ENCRYPT = [
   "avo-pro",
   "avo-dynamic_filters",
   "avo-advanced",
-  "avo-licensing"
+  "avo-licensing",
+  "avo-kanban"
 ].freeze
 
 module Buddy
@@ -170,13 +171,6 @@ module Buddy
           BASH
         end
       end
-      class Appraise < BaseCommand
-        desc "Run appraisal"
-
-        def call(**)
-          run("bundle exec appraisal")
-        end
-      end
 
       class Build < BaseCommand
         desc "Build the gem"
@@ -241,7 +235,7 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
         option :all, type: :boolean, default: false, desc: "Release all gems."
-        argument :level, desc: "major|minor|patch|pre"
+        argument :level, desc: "major|minor|patch|pre", required: false
 
         def call(gem: nil, skip_bump: false, level: "patch", all: false, **)
           if all
@@ -547,6 +541,11 @@ module Buddy
 
         def call(gem: nil, all: false, **)
           run("bundle install --quiet")
+
+          unless File.exist?("Appraisals")
+            say "Appraisals file not found. Skipping appraisal."
+            return
+          end
           run("bundle exec appraisal")
         end
       end
