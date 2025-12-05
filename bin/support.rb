@@ -77,13 +77,6 @@ def bundler_token
   @token ||= `bundle config get https://packager.dev/avo-hq`.match(/^.*: "(.*)"$/).captures.first
 end
 
-def gems
-  yaml_path = Pathname.new("#{__dir__}/../gems.yml")
-  YAML.load_file(yaml_path)["gems"].each do |gem, path|
-    [gem, File.expand_path(path, Dir.pwd)]
-  end.to_h
-end
-
 def gem_root_path
   `readlink $(whereis bud)`.chomp.gsub("/support/bin/bud", "")
 end
