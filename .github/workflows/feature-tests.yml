@@ -73,7 +73,8 @@ jobs:
         path: vendor/bundle
         key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
         restore-keys: |
-          ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+          ${{ runner.os }}-test-gems-
+        save-always: true
 
     - name: Get yarn cache directory path
       id: test-yarn-cache-dir-path
@@ -85,7 +86,8 @@ jobs:
         path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
         key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
+          ${{ runner.os }}-test-yarn-
+        save-always: true
 
     - name: Clone Avo repositories
       shell: bash
