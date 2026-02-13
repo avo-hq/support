@@ -67,24 +67,26 @@ jobs:
     - name: Add AVO_GEM_TOKEN
       run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
 
-    - uses: actions/cache@v4
+    - name: Restore gem cache
+      uses: actions/cache/restore@v5
       with:
         path: vendor/bundle
         key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
         restore-keys: |
-          ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+          ${{ runner.os }}-test-gems-
 
     - name: Get yarn cache directory path
       id: test-yarn-cache-dir-path
       run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
 
-    - uses: actions/cache@v4
+    - name: Restore yarn cache
+      uses: actions/cache/restore@v5
       id: test-yarn-cache
       with:
         path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
         key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
         restore-keys: |
-          ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
+          ${{ runner.os }}-test-yarn-
 
     - name: Clone Avo repositories
       shell: bash
@@ -152,7 +154,7 @@ jobs:
         done
 
     - name: Setup DB
-      run: bin/rails db:migrate:reset
+      run: bundle exec rails db:migrate:reset
 
     - name: Yarn install the dummy app
       run: |
@@ -171,6 +173,20 @@ jobs:
     - name: Run tests
       id: run_tests
       run: bundle exec rspec spec/system
+
+    - name: Save gem cache
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+
+    - name: Save yarn cache
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
 
     - uses: actions/upload-artifact@v4
       if: always() && steps.run_tests.outcome == 'failure'
