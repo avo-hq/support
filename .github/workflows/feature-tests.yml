@@ -68,12 +68,24 @@ jobs:
     - name: Add AVO_GEM_TOKEN
       run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
 
-    - uses: actions/cache@v3
+    - uses: actions/cache@v4
       with:
         path: vendor/bundle
         key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
         restore-keys: |
           ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+
+    - name: Get yarn cache directory path
+      id: test-yarn-cache-dir-path
+      run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+
+    - uses: actions/cache@v4
+      id: test-yarn-cache
+      with:
+        path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
+        key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
 
     - name: Clone Avo repositories
       shell: bash
@@ -114,25 +126,14 @@ jobs:
     - name: Compile Avo assets (development mode)
       run: |
         cd ../avo
-        bundle install
+        bundle config path ${{ github.workspace }}/vendor/bundle
+        bundle install --jobs 4 --retry 3
         yarn install
         yarn build
         bin/rails avo:sym_link
 
     - name: Setup DB
       run: bin/rails db:migrate:reset
-
-    - name: Get yarn cache directory path
-      id: test-yarn-cache-dir-path
-      run: echo "::set-output name=dir::$(yarn cache dir)"
-
-    - uses: actions/cache@v3
-      id: test-yarn-cache
-      with:
-        path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
-        key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
 
     - name: Yarn install the dummy app
       run: |
