@@ -126,9 +126,50 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(level: "minor", gem: nil, **)
-          version, _ = ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
+          version, _ = if level == "patch" && dot_prerelease_version?(raw_version_from_file)
+            bump_dot_prerelease!
+          else
+            ::Bump::Bump.run(level, commit: false, bundle: false, tag: false)
+          end
 
           say bump_message(version)
+        end
+
+        private
+
+        def raw_version_from_file
+          file_content = File.read(::Bump::Bump.file)
+
+          # Supported formats:
+          # - VERSION = "1.2.3"
+          # - VERSION = '1.2.3'
+          match = file_content.match(/VERSION\s*=\s*["']([^"']+)["']/)
+          raise "Could not extract VERSION from #{::Bump::Bump.file}" unless match
+
+          match[1]
+        end
+
+        def dot_prerelease_version?(version)
+          version.match?(/\A\d+\.\d+\.\d+\.(alpha|beta|rc)(\.\d+)?\z/)
+        end
+
+        def bump_dot_prerelease!
+          current_version = raw_version_from_file
+          match = current_version.match(/\A(\d+\.\d+\.\d+)\.(alpha|beta|rc)(?:\.(\d+))?\z/)
+          raise "Unsupported prerelease format: #{current_version}" unless match
+
+          base, label, number = match.captures
+          next_number = number.nil? ? 1 : number.to_i + 1
+          next_version = "#{base}.#{label}.#{next_number}"
+
+          file_path = ::Bump::Bump.file
+          file_content = File.read(file_path)
+          updated_content = file_content.sub(current_version, next_version)
+          raise "Could not update version in #{file_path}" if updated_content == file_content
+
+          File.write(file_path, updated_content)
+
+          [next_version, file_path]
         end
       end
 
@@ -178,7 +219,7 @@ module Buddy
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
 
         def call(gem: nil, **)
-          if gemspec_name == "avo" && !version.start_with?("4.")
+          if gemspec_name == "avo"
             `gem push --host https://rubygems.org/ ./pkg/#{gemspec_name}.gem`
           else
             `gem push --key github --host https://rubygems.pkg.github.com/avo-hq ./pkg/#{gemspec_name}.gem`
@@ -326,7 +367,7 @@ module Buddy
             say "= Committing gems ="
             say "==================="
             time_commit = parallelize(GEMS, label: "Commit") do |gem|
-              run("bud commit --gem #{gem} #{"--no-tag" if major_version == '4'} --origin #{branch}")
+              run("bud commit --gem #{gem} --origin #{branch}")
             end
   
             time_end = Time.now
