@@ -25,7 +25,7 @@ concurrency:
 env:
   RAILS_ENV: test
   BUNDLE_PATH_RELATIVE_TO_CWD: true
-  AVO_LICENSE_KEY: license_123
+  AVO_LICENSE_KEY: ${{ secrets.AVO_LICENSE_KEY }}
   PGHOST: localhost
   PGUSER: postgres
   PGPORT: 5432
