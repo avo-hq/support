@@ -259,7 +259,6 @@ module Buddy
 
         # all the gems that will be released
         GEMS = ["avo", "avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
-        GEMS_TO_ENCRYPT = ["avo-dashboards", "avo-menu", "avo-pro", "avo-dynamic_filters", "avo-advanced"]
 
         option :gem, aliases: ["-g"], required: false, desc: "The gem where you want to run the command on"
         option :skip_bump, type: :boolean, aliases: ["-sb"], required: false, desc: "Skip bumping the version."
@@ -334,7 +333,7 @@ module Buddy
             say "===================="
             say "= Encrypting gems ="
             say "===================="
-            time_encrypt = parallelize(GEMS_TO_ENCRYPT, label: "Encrypt gems") do |gem|
+            time_encrypt = parallelize(GEMS, label: "Encrypt gems") do |gem|
               run("bud encrypt --gem #{gem}", cmd_options: { printer: :quiet })
             end
   
@@ -350,7 +349,7 @@ module Buddy
             say "==========================="
             say "= Cleanup encrypted files ="
             say "==========================="
-            time_cleanup_encrypted = parallelize(GEMS_TO_ENCRYPT, label: "Cleanup encrypted files") do |gem|
+            time_cleanup_encrypted = parallelize(GEMS, label: "Cleanup encrypted files") do |gem|
               run("bud cleanup_encrypted --gem #{gem}", cmd_options: { printer: :quiet })
             end
 
