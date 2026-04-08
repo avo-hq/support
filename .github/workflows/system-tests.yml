@@ -63,17 +63,10 @@ jobs:
       with:
         bundler: default
         ruby-version: ${{ matrix.ruby }}
+        bundler-cache: true
 
     - name: Add AVO_GEM_TOKEN
       run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
-
-    - name: Restore gem cache
-      uses: actions/cache/restore@v5
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-test-gems-
 
     - name: Get yarn cache directory path
       id: test-yarn-cache-dir-path
@@ -173,13 +166,6 @@ jobs:
     - name: Run tests
       id: run_tests
       run: bundle exec rspec spec/system
-
-    - name: Save gem cache
-      if: always()
-      uses: actions/cache/save@v5
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
     - name: Save yarn cache
       if: always()
