@@ -17,6 +17,8 @@ on:
         required: true
       AVO_GEM_TOKEN:
         required: true
+      AVO_LICENSE_KEY:
+        required: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
