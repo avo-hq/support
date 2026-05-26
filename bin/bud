@@ -29,7 +29,10 @@ require "active_support/all"
 # require "fileutils"
 # require "bump"
 # require "pathname"
+# require "rbconfig"
 # require "rubygems"
+require "rbconfig"
+require "shellwords"
 require_relative "support"
 
 DOCKER_PROGRESS = "auto" # auto|plain
@@ -79,6 +82,20 @@ module Buddy
           mins = (total_time / 60).round(2).to_s.ljust(11)
           puts "│ #{"Total".ljust(19)} │ #{secs} │ #{mins} │"
           puts "└─────────────────────┴────────────┴─────────────┘"
+        end
+
+        # Prefer the sibling `gems/evocation` copy. The exe alone does not put `lib` on $LOAD_PATH,
+        # so `require "evocation/cli"` would load whatever Evocation is installed in RubyGems — not this tree.
+        def evocation_cli
+          @evocation_cli ||= begin
+            exe = File.expand_path("../../evocation/exe/evocation", __dir__)
+            lib = File.expand_path("../../evocation/lib", __dir__)
+            if File.file?(exe) && File.directory?(lib)
+              Shellwords.join([RbConfig.ruby, "-I#{lib}", exe])
+            else
+              "evocation"
+            end
+          end
         end
 
         def parallelize(items, label: nil, &block)
@@ -180,7 +197,7 @@ module Buddy
         def call(gem: nil, **)
           return unless File.exist?(".evocation/config.yml")
 
-          run("evocation encrypt gem #{gemspec_name}.gemspec --key_path ../avo-licensing/.evocation/symmetric_key.bin --loader_gem avo-licensing")
+          run("#{evocation_cli} encrypt gem #{gemspec_name}.gemspec --key_path ../avo-licensing/.evocation/symmetric_key.bin --loader_gem avo-licensing")
         end
       end
 
