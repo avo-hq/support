@@ -40,7 +40,8 @@ jobs:
           ruby-version: 3.3.0
 
       - name: erb-lint
-        uses: tk0miya/action-erblint@v1
+        # Pinned to a SHA because the v1 tag points at a commit with a broken action.yml
+        uses: tk0miya/action-erblint@63e38bdafbf2ec51550bbea7dccbd3ecf30ea362
         with:
           github_token: ${{ secrets.github_token }}
 
