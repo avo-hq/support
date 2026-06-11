@@ -42,6 +42,13 @@ jobs:
       - name: Install erb_lint
         run: gem install erb_lint
 
+      # The action requires a config file. Provide erb_lint's default linters
+      # unless the repo ships its own .erb_lint.yml, so consuming gems need no
+      # per-repo config.
+      - name: Ensure erb_lint config exists
+        run: |
+          test -f .erb_lint.yml || echo "EnableDefaultLinters: true" > .erb_lint.yml
+
       - name: erb-lint
         # Pinned to a SHA because the v1 tag points at a commit with a broken action.yml
         uses: tk0miya/action-erblint@63e38bdafbf2ec51550bbea7dccbd3ecf30ea362
