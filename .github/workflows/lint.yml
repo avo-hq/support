@@ -39,6 +39,9 @@ jobs:
         with:
           ruby-version: 3.3.0
 
+      - name: Install erb_lint
+        run: gem install erb_lint
+
       - name: erb-lint
         # Pinned to a SHA because the v1 tag points at a commit with a broken action.yml
         uses: tk0miya/action-erblint@63e38bdafbf2ec51550bbea7dccbd3ecf30ea362
