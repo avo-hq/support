@@ -169,9 +169,11 @@ jobs:
         yarn
 
     - name: Yarn install
+      if: hashFiles('package.json') != ''
       run: yarn
 
     - name: Build assets
+      if: hashFiles('package.json') != ''
       env:
         RAILS_ENV: production
         NODE_ENV: production
