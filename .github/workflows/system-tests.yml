@@ -142,7 +142,12 @@ jobs:
               cd "$dir"
               if [ -f "Gemfile" ]; then
                 bundle config path ${{ github.workspace }}/vendor/bundle
-                bundle install --jobs 4 --retry 3
+                if [ -n "${BUNDLE_GEMFILE:-}" ] && [ -f "${BUNDLE_GEMFILE}" ]; then
+                  gemfile="${BUNDLE_GEMFILE}"
+                else
+                  gemfile="Gemfile"
+                fi
+                bundle install --gemfile "${gemfile}" --jobs 4 --retry 3
               fi
               if [ -f "package.json" ]; then
                 yarn install
