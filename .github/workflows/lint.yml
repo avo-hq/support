@@ -10,7 +10,7 @@ concurrency:
 jobs:
   standardrb:
     name: runner / standardrb
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -30,7 +30,7 @@ jobs:
 
   erb-lint:
     name: runner / erb-lint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -56,25 +56,25 @@ jobs:
           github_token: ${{ secrets.github_token }}
 
   check-eslint-config:
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       file_exists: ${{ steps.check_file.outputs.file_exists }}
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Check for .eslintrc.json
-      id: check_file
-      run: |
-        if [ -f .eslintrc.json ]; then
-          echo "file_exists=true" >> $GITHUB_ENV
-        else
-          echo "file_exists=false" >> $GITHUB_ENV
-        fi
+      - name: Check for .eslintrc.json
+        id: check_file
+        run: |
+          if [ -f .eslintrc.json ]; then
+            echo "file_exists=true" >> $GITHUB_ENV
+          else
+            echo "file_exists=false" >> $GITHUB_ENV
+          fi
 
   eslint:
     name: runner / eslint
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     if: github.env.file_exists == 'true'
     steps:
       - uses: actions/checkout@v4

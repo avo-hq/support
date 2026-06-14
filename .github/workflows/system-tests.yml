@@ -39,11 +39,11 @@ env:
 jobs:
   system_specs:
     strategy:
-        matrix:
-          ruby:
-            - '3.3'
-          rails:
-            - '8.0'
+      matrix:
+        ruby:
+          - "3.3"
+        rails:
+          - "8.0"
 
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
@@ -58,147 +58,147 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
-      with:
-        bundler: default
-        ruby-version: ${{ matrix.ruby }}
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler: default
+          ruby-version: ${{ matrix.ruby }}
 
-    - name: Add AVO_GEM_TOKEN
-      run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
+      - name: Add AVO_GEM_TOKEN
+        run: bundle config set --global https://packager.dev/avo-hq/ ${{secrets.AVO_GEM_TOKEN}}
 
-    - name: Restore gem cache
-      uses: actions/cache/restore@v5
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-test-gems-
+      - name: Restore gem cache
+        uses: actions/cache/restore@v5
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-test-gems-
 
-    - name: Get yarn cache directory path
-      id: test-yarn-cache-dir-path
-      run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+      - name: Get yarn cache directory path
+        id: test-yarn-cache-dir-path
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
 
-    - name: Restore yarn cache
-      uses: actions/cache/restore@v5
-      id: test-yarn-cache
-      with:
-        path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
-        key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-test-yarn-
+      - name: Restore yarn cache
+        uses: actions/cache/restore@v5
+        id: test-yarn-cache
+        with:
+          path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-test-yarn-
 
-    - name: Clone Avo repositories
-      shell: bash
-      run: |
-        # Ensure "avo" is always included
-        avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
+      - name: Clone Avo repositories
+        shell: bash
+        run: |
+          # Ensure "avo" is always included
+          avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
 
-        # Convert string into an array
-        IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
+          # Convert string into an array
+          IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
 
-        for repo in "${repos[@]}"; do
-          echo "Cloning $repo..."
+          for repo in "${repos[@]}"; do
+            echo "Cloning $repo..."
 
-          # Set GitHub repository path
-          gh_repo="avo-hq/$repo"
-          path="./../$repo"
+            # Set GitHub repository path
+            gh_repo="avo-hq/$repo"
+            path="./../$repo"
 
-          # Check if the branch exists
-          if gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent; then
-            echo "Branch ${{ github.head_ref }} exists, checking out..."
-            branch_ref="${{ github.head_ref }}"
-          else
-            echo "Branch ${{ github.head_ref }} not found, defaulting to ${{ inputs.AVO_FALLBACK_BRANCH }}..."
-            branch_ref=${{ inputs.AVO_FALLBACK_BRANCH }}
-          fi
+            # Check if the branch exists
+            if gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent; then
+              echo "Branch ${{ github.head_ref }} exists, checking out..."
+              branch_ref="${{ github.head_ref }}"
+            else
+              echo "Branch ${{ github.head_ref }} not found, defaulting to ${{ inputs.AVO_FALLBACK_BRANCH }}..."
+              branch_ref=${{ inputs.AVO_FALLBACK_BRANCH }}
+            fi
 
-          # Clone the repo
-          gh repo clone $gh_repo $path -- --branch $branch_ref
+            # Clone the repo
+            gh repo clone $gh_repo $path -- --branch $branch_ref
 
-          echo ""
-        done
+            echo ""
+          done
 
-    - name: Bundle install
-      run: |
-        bundle config path vendor/bundle
-        bundle install --jobs 4 --retry 3
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
 
-    - name: Compile repositories assets (development mode)
-      shell: bash
-      run: |
-        # Build assets for all cloned Avo repos (avo + any from AVO_DEPENDENCIES)
-        avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
+      - name: Compile repositories assets (development mode)
+        shell: bash
+        run: |
+          # Build assets for all cloned Avo repos (avo + any from AVO_DEPENDENCIES)
+          avo_dependencies_repositories="avo,${{ inputs.AVO_DEPENDENCIES }}"
 
-        IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
+          IFS=',' read -ra repos <<< "$avo_dependencies_repositories"
 
-        for repo in "${repos[@]}"; do
-          dir="../$repo"
-          echo "Compiling assets for $repo in $dir..."
-          if [ -d "$dir" ]; then
-            (
-              cd "$dir"
-              if [ -f "Gemfile" ]; then
-                bundle config path ${{ github.workspace }}/vendor/bundle
-                if [ -n "${BUNDLE_GEMFILE:-}" ] && [ -f "${BUNDLE_GEMFILE}" ]; then
-                  gemfile="${BUNDLE_GEMFILE}"
-                else
-                  gemfile="Gemfile"
+          for repo in "${repos[@]}"; do
+            dir="../$repo"
+            echo "Compiling assets for $repo in $dir..."
+            if [ -d "$dir" ]; then
+              (
+                cd "$dir"
+                if [ -f "Gemfile" ]; then
+                  bundle config path ${{ github.workspace }}/vendor/bundle
+                  if [ -n "${BUNDLE_GEMFILE:-}" ] && [ -f "${BUNDLE_GEMFILE}" ]; then
+                    gemfile="${BUNDLE_GEMFILE}"
+                  else
+                    gemfile="Gemfile"
+                  fi
+                  bundle install --gemfile "${gemfile}" --jobs 4 --retry 3
                 fi
-                bundle install --gemfile "${gemfile}" --jobs 4 --retry 3
-              fi
-              if [ -f "package.json" ]; then
-                yarn install
-                yarn build
-              fi
-            )
-          else
-            echo "Directory $dir not found. Skipping $repo."
-          fi
-          echo ""
-        done
+                if [ -f "package.json" ]; then
+                  yarn install
+                  yarn build
+                fi
+              )
+            else
+              echo "Directory $dir not found. Skipping $repo."
+            fi
+            echo ""
+          done
 
-    - name: Setup DB
-      run: bundle exec rails db:migrate:reset
+      - name: Setup DB
+        run: bundle exec rails db:migrate:reset
 
-    - name: Yarn install the dummy app
-      run: |
-        cd spec/dummy
-        yarn
+      - name: Yarn install the dummy app
+        run: |
+          cd spec/dummy
+          yarn
 
-    - name: Yarn install
-      if: hashFiles('package.json') != ''
-      run: yarn
+      - name: Yarn install
+        if: hashFiles('package.json') != ''
+        run: yarn
 
-    - name: Build assets
-      if: hashFiles('package.json') != ''
-      env:
-        RAILS_ENV: production
-        NODE_ENV: production
-      run: yarn build
+      - name: Build assets
+        if: hashFiles('package.json') != ''
+        env:
+          RAILS_ENV: production
+          NODE_ENV: production
+        run: yarn build
 
-    - name: Run tests
-      id: run_tests
-      run: bundle exec rspec spec/system
+      - name: Run tests
+        id: run_tests
+        run: bundle exec rspec spec/system
 
-    - name: Save gem cache
-      if: always()
-      uses: actions/cache/save@v5
-      with:
-        path: vendor/bundle
-        key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
+      - name: Save gem cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-test-gems-${{ hashFiles('**/Gemfile.lock') }}
 
-    - name: Save yarn cache
-      if: always()
-      uses: actions/cache/save@v5
-      with:
-        path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
-        key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
+      - name: Save yarn cache
+        if: always()
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.test-yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-test-yarn-${{ hashFiles('**/yarn.lock') }}
 
-    - uses: actions/upload-artifact@v4
-      if: always() && steps.run_tests.outcome == 'failure'
-      with:
-        name: rspec_failed_screenshots_rails
-        path: ./spec/dummy/tmp/screenshots
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.run_tests.outcome == 'failure'
+        with:
+          name: rspec_failed_screenshots_rails
+          path: ./spec/dummy/tmp/screenshots
