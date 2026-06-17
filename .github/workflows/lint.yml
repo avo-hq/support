@@ -21,7 +21,8 @@ jobs:
           ruby-version: 3.3.0
 
       - name: standardrb
-        uses: avo-hq/action-standardrb@master
+        # Pinned to a SHA (master @ 2026-06-17) rather than a moving branch for reproducibility.
+        uses: avo-hq/action-standardrb@5fd05db1ad01480dda7e3135b0cf352c51e792f1
         with:
           github_token: ${{ secrets.github_token }}
           reporter: github-pr-review # Default is github-pr-check
@@ -40,7 +41,7 @@ jobs:
           ruby-version: 3.3.0
 
       - name: Install erb_lint
-        run: gem install erb_lint
+        run: gem install erb_lint -v 0.9.0
 
       # The action requires a config file. Provide erb_lint's default linters
       # unless the repo ships its own .erb_lint.yml, so consuming gems need no
@@ -67,24 +68,18 @@ jobs:
         id: check_file
         run: |
           if [ -f .eslintrc.json ]; then
-            echo "file_exists=true" >> $GITHUB_ENV
+            echo "file_exists=true" >> $GITHUB_OUTPUT
           else
-            echo "file_exists=false" >> $GITHUB_ENV
+            echo "file_exists=false" >> $GITHUB_OUTPUT
           fi
 
   eslint:
     name: runner / eslint
     runs-on: ubuntu-latest
-    if: github.env.file_exists == 'true'
+    needs: check-eslint-config
+    if: needs.check-eslint-config.outputs.file_exists == 'true'
     steps:
       - uses: actions/checkout@v4
-      - name: Check for eslint config
-        run: |
-          pwd
-          if [ ! -f .eslintrc.json ]; then
-            echo "File not found!"
-            exit 0
-          fi
       - run: yarn add global eslint@6.8.0 eslint-plugin-sort-imports-es6-autofix@^0.5.0 eslint-config-airbnb@^18.1.0 eslint-config-airbnb-base@^14.1.0 babel-eslint@^10.1.0 eslint-plugin-import@^2.20.2
       - name: eslint
         uses: reviewdog/action-eslint@v1
