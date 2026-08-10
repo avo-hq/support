@@ -1,0 +1,66 @@
+# The release-note category vocabulary, canonical for every Avo repository.
+#
+# Two consumers mirror this file, each for a recorded technical reason:
+#
+#   avo-hq/avo        .github/release-drafter.yml — release-drafter resolves
+#                     config-name against the repository being drafted, so its
+#                     copy cannot live here (see workspace conventions).
+#   avo-hq/workspace  lib/workspace/release_categories.yml — `ws release-notes`
+#                     must work offline and in CI without cross-repo reads.
+#
+# Both are byte-audited against this file by `ws audit-release-categories`
+# (run locally or by an agent; CI wiring needs the bot app readable here).
+# Edit HERE first, then sync the mirrors.
+#
+# Order is rendering order. `labels` are the PR labels each repo's labeller
+# applies (bare on avo, `type:`-prefixed in the workspace — the prefix is
+# stripped before matching). `branches` are the branch-name segments
+# `ws release-notes` falls back to when a PR carries no type label.
+categories:
+  - type: feature
+    title: "🎸 Features"
+    labels: [Feature, Feat]
+    branches: [feat, feature]
+  - type: enhancement
+    title: "✨ Enhancements"
+    labels: [Enhancement]
+    branches: [enhancement]
+  - type: fix
+    title: "🐛 Bug Fixes"
+    labels: [Fix, Bugfix, Bug]
+    branches: [fix, bugfix, hotfix]
+  - type: test
+    title: "🧪 Test"
+    labels: [Test]
+    branches: [test, tests]
+  - type: docs
+    title: "✏️ Docs"
+    labels: [Docs]
+    branches: [docs, doc]
+  - type: refactor
+    title: "💡 Refactor"
+    labels: [Refactor]
+    branches: [refactor]
+  - type: style
+    title: "💄 Style"
+    labels: [Style]
+    branches: [style]
+  - type: ci
+    title: "🎡 CI"
+    labels: [CI]
+    branches: [ci]
+  - type: dx
+    title: "😎 Developer Experience (DX)"
+    labels: ["Developer Experience (DX)", DX]
+    branches: [dx]
+  - type: performance
+    title: "⚡️ Performance"
+    labels: [Perf, Performance]
+    branches: [perf, performance]
+  - type: maintenance
+    title: "🤖 Maintenance"
+    labels: [Chore, Dependencies, depfu]
+    branches: [chore, chores, deps, build, revert]
+
+# PRs with no matching label and no matching branch segment.
+default_type: maintenance
