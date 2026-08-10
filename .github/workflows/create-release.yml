@@ -29,6 +29,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # gh pr view reads each PR in the tag range for the release notes.
+      # Declaring any permission zeroes the rest, and without this one every
+      # lookup died with "Resource not accessible by integration" — swallowed
+      # per-PR, publishing "No customer-facing changes" on a release that had
+      # them (avo-dynamic_filters v4.1.2).
+      pull-requests: read
     steps:
       # Full history with tags: the package path bounds its range at the same
       # package's previous tag, and a shallow checkout would leave nothing to
