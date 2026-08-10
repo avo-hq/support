@@ -282,19 +282,30 @@ module Buddy
         option :all, type: :boolean, default: false, desc: "Release all gems."
         argument :level, desc: "major|minor|patch|pre", required: false
 
+        # The branch a gem's release lands on, per gem and per major version.
+        #
+        # avo core renamed its branches when Avo 4 took over: the Avo 3 line moved
+        # from `main` to `3.x`, and `main` became Avo 4. The paid gems live in
+        # separate repositories that never renamed, so `main` is still their Avo 3
+        # branch. Without the first case, an Avo 3 release of core pushes at the
+        # Avo 4 branch — which reports "Everything up-to-date" and silently ships
+        # nothing.
+        def release_branch_for(gem, major_version)
+          return "3.x" if gem == "avo" && major_version.to_s == "3"
+
+          (major_version.to_s == "4") ? "4-dev" : "main"
+        end
+
         def call(gem: nil, skip_bump: false, level: "patch", all: false, **)
           if all
             say "Do you want to release avo 3 or avo 4? (3/4)"
             major_version = STDIN.gets.chomp
-            if major_version == "4"
-              branch = "4-dev"
-            else
-              branch = "main"
-            end
-  
+
             # Detect unstashed changes and show them to the user
             GEMS.each do |gem|
               chdir_to_gem(gem) do
+                branch = release_branch_for(gem, major_version)
+
                 if `git branch --show-current`.chomp != branch
                   say "You are releasing #{gem} #{major_version}.x but you are not on the #{branch} branch. Please switch to the #{branch} branch and try again."
                   exit
@@ -383,7 +394,7 @@ module Buddy
             say "= Committing gems ="
             say "==================="
             time_commit = parallelize(GEMS, label: "Commit") do |gem|
-              run("bud commit --gem #{gem} --origin #{branch}")
+              run("bud commit --gem #{gem} --origin #{release_branch_for(gem, major_version)}")
             end
   
             time_end = Time.now
@@ -406,11 +417,7 @@ module Buddy
             gem = gem || gemspec_name
             major_version = version.split(".").first
 
-            if major_version == "4"
-              branch = "4-dev"
-            else
-              branch = "main"
-            end
+            branch = release_branch_for(gem, major_version)
 
             files = `git status --porcelain`.split("\n")
 
