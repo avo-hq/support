@@ -23,6 +23,13 @@ on:
     secrets:
       REFRESH_RELEASES_SECRET:
         required: true
+      # Optional: without them the release still publishes, and only the
+      # announcement below is skipped. A caller that has never been given the
+      # App's credentials therefore keeps working unchanged.
+      WORKFLOW_BOT_APP_ID:
+        required: false
+      WORKFLOW_BOT_APP_PRIVATE_KEY:
+        required: false
 
 jobs:
   build:
@@ -135,6 +142,69 @@ jobs:
             args+=("$payload")
           fi
           gh release create "${args[@]}"
+
+      # Tell the people who reported a fix that it shipped. Both paths need a
+      # credential GITHUB_TOKEN cannot give them: the package path comments on
+      # issues that live in another repository, and the core path has to reach
+      # into the private monorepo. The App both callers already use for
+      # cross-repo work mints it. Everything here is skipped without the
+      # secrets, and the release itself never depends on it.
+      - name: Check for cross-repo credentials
+        id: credentials
+        shell: bash
+        env:
+          APP_ID: ${{ secrets.WORKFLOW_BOT_APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No App credentials here — skipping the release announcement." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # continue-on-error, so an App that is not installed on one of these
+      # repositories leaves a published release green instead of red. The
+      # guards below read the outcome rather than assuming a token exists.
+      - name: Generate GitHub App token
+        id: app-token
+        if: steps.credentials.outputs.available == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.WORKFLOW_BOT_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
+          owner: avo-hq
+          repositories: |
+            avo
+            workspace
+
+      # Package path: the payload this run just built names every issue the
+      # range's PRs closed. `ws announce` is idempotent on the event id — the
+      # tagged commit — so a re-run, or a second gem tagged from the same
+      # commit, posts nothing twice.
+      - name: Announce the issues this release closed
+        if: steps.detect.outputs.package != '' && steps.app-token.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: ./ws announce --payload "$RUNNER_TEMP/release-notes/release.json"
+
+      # Core path: this repository has no `ws` to build a payload with, so the
+      # monorepo — which does — is asked to do it. Only the tag travels; the
+      # workspace resolves the rest from the public repository.
+      - name: Ask the monorepo to announce this core release
+        if: steps.detect.outputs.package == '' && github.repository == 'avo-hq/avo' && steps.app-token.outcome == 'success'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.detect.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api repos/avo-hq/workspace/dispatches \
+            -f event_type=avo-core-released \
+            -f "client_payload[tag]=$TAG"
+          echo "Asked avo-hq/workspace to announce $TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish release on avohq.io
         shell: bash
