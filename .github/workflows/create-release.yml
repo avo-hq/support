@@ -125,6 +125,10 @@ jobs:
       # body file, the prerelease flag, and the asset upload — and reading the
       # body from a file keeps PR-derived text out of every workflow expression
       # and shell word.
+      #
+      # A release that already exists is left alone, so dispatching this
+      # workflow again for a published tag re-runs only the steps after it —
+      # the announcement and the avohq.io refresh — instead of failing here.
       - name: Create the release
         shell: bash
         env:
@@ -133,6 +137,10 @@ jobs:
           PACKAGE: ${{ steps.detect.outputs.package }}
         run: |
           set -euo pipefail
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists — leaving it as is." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           args=("$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/release-body.md")
           if [ -n "$PACKAGE" ]; then
             payload="$RUNNER_TEMP/release-notes/release.json"
@@ -182,9 +190,11 @@ jobs:
       # Package path: the payload this run just built names every issue the
       # range's PRs closed. `ws announce` is idempotent on the event id — the
       # tagged commit — so a re-run, or a second gem tagged from the same
-      # commit, posts nothing twice.
+      # commit, posts nothing twice. continue-on-error, like every step of the
+      # announcement: a failure here must not skip the avohq.io publish below.
       - name: Announce the issues this release closed
         if: steps.detect.outputs.package != '' && steps.app-token.outcome == 'success'
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -193,17 +203,24 @@ jobs:
       # Core path: this repository has no `ws` to build a payload with, so the
       # monorepo — which does — is asked to do it. Only the tag travels; the
       # workspace resolves the rest from the public repository.
+      #
+      # workflow_dispatch rather than repository_dispatch: the latter needs
+      # Contents: write on the monorepo — push access — while this needs only
+      # Actions: write. With repository_dispatch the App's 403 failed v4.2.7's
+      # run and skipped its avohq.io publish.
       - name: Ask the monorepo to announce this core release
         if: steps.detect.outputs.package == '' && github.repository == 'avo-hq/avo' && steps.app-token.outcome == 'success'
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TAG: ${{ steps.detect.outputs.tag }}
         run: |
           set -euo pipefail
-          gh api repos/avo-hq/workspace/dispatches \
-            -f event_type=avo-core-released \
-            -f "client_payload[tag]=$TAG"
+          gh workflow run announce-core.yml \
+            --repo avo-hq/workspace \
+            --ref main \
+            -f "tag=$TAG"
           echo "Asked avo-hq/workspace to announce $TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish release on avohq.io
