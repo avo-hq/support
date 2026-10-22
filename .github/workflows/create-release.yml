@@ -93,6 +93,12 @@ jobs:
       # tag matches the pushed one: `find(r => r.draft)` took whichever draft
       # was first, which is correct with one release stream and silently wrong
       # anywhere a second draft can exist.
+      #
+      # With no match, the first draft is still the right body when its branch
+      # contains the tag: release-drafter names its draft after the next patch,
+      # so a minor cut from main finds main's draft under another name. A tag
+      # from a maintenance branch does not, and must not take main's draft:
+      # v3.33.2 published v4.3.4's notes that way.
       - name: Get release notes from the draft
         if: steps.detect.outputs.package == ''
         uses: actions/github-script@v7
@@ -105,7 +111,15 @@ jobs:
               repo: context.repo.repo,
             })
             const drafts = releases.filter((r) => r.draft)
-            const match = drafts.find((r) => r.tag_name === tag) || drafts[0]
+            let match = drafts.find((r) => r.tag_name === tag)
+            if (!match && drafts[0]) {
+              const {data: comparison} = await github.rest.repos.compareCommitsWithBasehead({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                basehead: `${tag}...${drafts[0].target_commitish}`,
+              })
+              if (['ahead', 'identical'].includes(comparison.status)) match = drafts[0]
+            }
             return match?.body || `Release ${tag}`
 
       - name: Stage the draft body
@@ -126,9 +140,13 @@ jobs:
       # body from a file keeps PR-derived text out of every workflow expression
       # and shell word.
       #
-      # A release that already exists is left alone, so dispatching this
-      # workflow again for a published tag re-runs only the steps after it —
-      # the announcement and the avohq.io refresh — instead of failing here.
+      # A published release is left alone, so dispatching this workflow again
+      # for a published tag re-runs only the steps after it — the announcement
+      # and the avohq.io refresh — instead of failing here. A draft under the
+      # tag is release-drafter's, named after the patch it predicted, and is
+      # published: skipping it left v4.3.2 and v4.3.4 as drafts.
+      #
+      # A maintenance-line tag (v3.x pushed after v4.x) must not take Latest.
       - name: Create the release
         shell: bash
         env:
@@ -137,11 +155,22 @@ jobs:
           PACKAGE: ${{ steps.detect.outputs.package }}
         run: |
           set -euo pipefail
-          if gh release view "$TAG" > /dev/null 2>&1; then
+          draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null || true)
+          if [ "$draft" = "false" ]; then
             echo "Release $TAG already exists — leaving it as is." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
-          args=("$TAG" --title "$TAG" --notes-file "$RUNNER_TEMP/release-body.md")
+          args=(--title "$TAG" --notes-file "$RUNNER_TEMP/release-body.md")
+          if [ -z "$PACKAGE" ]; then
+            latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+            if [ -n "$latest" ] && [ "$(printf '%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n1)" != "${TAG#v}" ]; then
+              args+=(--latest=false)
+            fi
+          fi
+          if [ "$draft" = "true" ]; then
+            gh release edit "$TAG" --draft=false "${args[@]}"
+            exit 0
+          fi
           if [ -n "$PACKAGE" ]; then
             payload="$RUNNER_TEMP/release-notes/release.json"
             if [ "$(jq -r '.prerelease' "$payload")" = "true" ]; then
@@ -149,7 +178,7 @@ jobs:
             fi
             args+=("$payload")
           fi
-          gh release create "${args[@]}"
+          gh release create "$TAG" "${args[@]}"
 
       # Tell the people who reported a fix that it shipped. Both paths need a
       # credential GITHUB_TOKEN cannot give them: the package path comments on
