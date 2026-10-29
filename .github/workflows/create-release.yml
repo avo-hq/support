@@ -143,8 +143,10 @@ jobs:
       # A published release is left alone, so dispatching this workflow again
       # for a published tag re-runs only the steps after it — the announcement
       # and the avohq.io refresh — instead of failing here. A draft under the
-      # tag is release-drafter's, named after the patch it predicted, and is
-      # published: skipping it left v4.3.2 and v4.3.4 as drafts.
+      # tag stays release-drafter's, and the release is created beside it: the
+      # version bump's push to main runs the drafter at the same moment, and
+      # its update saved a draft published in place back as a draft, after the
+      # notification had gone out (v4.3.5, v4.3.9).
       #
       # A maintenance-line tag (v3.x pushed after v4.x) must not take Latest.
       - name: Create the release
@@ -166,10 +168,6 @@ jobs:
             if [ -n "$latest" ] && [ "$(printf '%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n1)" != "${TAG#v}" ]; then
               args+=(--latest=false)
             fi
-          fi
-          if [ "$draft" = "true" ]; then
-            gh release edit "$TAG" --draft=false "${args[@]}"
-            exit 0
           fi
           if [ -n "$PACKAGE" ]; then
             payload="$RUNNER_TEMP/release-notes/release.json"
