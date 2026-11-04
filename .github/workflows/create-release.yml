@@ -133,6 +133,79 @@ jobs:
           # interpolating the body into a shell word.
           printf '%s' "$DRAFT_BODY" | jq -r . > "$RUNNER_TEMP/release-body.md"
 
+      # Tell the people who reported a fix that it shipped. Both paths need a
+      # credential GITHUB_TOKEN cannot give them: the package path comments on
+      # issues that live in another repository, and the core path has to reach
+      # into the private monorepo, for `ws` and for its announcement. The App
+      # both callers already use for cross-repo work mints it. Everything here is
+      # skipped without the secrets, and the release itself never depends on it.
+      - name: Check for cross-repo credentials
+        id: credentials
+        shell: bash
+        env:
+          APP_ID: ${{ secrets.WORKFLOW_BOT_APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APP_ID" ] && [ -n "$APP_PRIVATE_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No App credentials here — skipping the release announcement and core's dependency changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # continue-on-error, so an App that is not installed on one of these
+      # repositories leaves a published release green instead of red. The
+      # guards below read the outcome rather than assuming a token exists.
+      - name: Generate GitHub App token
+        id: app-token
+        if: steps.credentials.outputs.available == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.WORKFLOW_BOT_APP_ID }}
+          private-key: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
+          owner: avo-hq
+          repositories: |
+            avo
+            workspace
+
+      # Drafter knows PRs, not the gemspec, so `ws` reads avo's Gemfile.lock at both tags as it does for every gem.
+      # It lives in the private monorepo, so without the App token core publishes with the drafter's body alone.
+      - name: Check out ws for the dependency changes
+        id: ws
+        if: steps.detect.outputs.package == '' && github.repository == 'avo-hq/avo' && steps.app-token.outcome == 'success'
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: avo-hq/workspace
+          token: ${{ steps.app-token.outputs.token }}
+          path: .workspace
+          persist-credentials: false
+          sparse-checkout: |
+            lib
+            vendor
+
+      - uses: ruby/setup-ruby@v1
+        if: steps.ws.outcome == 'success'
+        with:
+          ruby-version-file: .workspace/.ruby-version
+
+      # Written to its own file first, so a failure leaves the drafter's body whole rather than half-appended.
+      - name: Add the dependency changes to the body
+        if: steps.ws.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          TAG: ${{ steps.detect.outputs.tag }}
+        run: |
+          set -euo pipefail
+          ./.workspace/ws release-notes --package avo --version "${TAG#v}" --repo-path . --dependencies-only \
+            > "$RUNNER_TEMP/dependencies.md"
+          if [ -s "$RUNNER_TEMP/dependencies.md" ]; then
+            printf '\n' >> "$RUNNER_TEMP/release-body.md"
+            cat "$RUNNER_TEMP/dependencies.md" >> "$RUNNER_TEMP/release-body.md"
+          fi
+
       # `gh release create` rather than actions/create-release@v1: the action
       # is archived, hardcodes prerelease:false, and has no asset input at all,
       # so the payload could not be attached through it. One call handles the
@@ -177,42 +250,6 @@ jobs:
             args+=("$payload")
           fi
           gh release create "$TAG" "${args[@]}"
-
-      # Tell the people who reported a fix that it shipped. Both paths need a
-      # credential GITHUB_TOKEN cannot give them: the package path comments on
-      # issues that live in another repository, and the core path has to reach
-      # into the private monorepo. The App both callers already use for
-      # cross-repo work mints it. Everything here is skipped without the
-      # secrets, and the release itself never depends on it.
-      - name: Check for cross-repo credentials
-        id: credentials
-        shell: bash
-        env:
-          APP_ID: ${{ secrets.WORKFLOW_BOT_APP_ID }}
-          APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
-        run: |
-          if [ -n "$APP_ID" ] && [ -n "$APP_PRIVATE_KEY" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No App credentials here — skipping the release announcement." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      # continue-on-error, so an App that is not installed on one of these
-      # repositories leaves a published release green instead of red. The
-      # guards below read the outcome rather than assuming a token exists.
-      - name: Generate GitHub App token
-        id: app-token
-        if: steps.credentials.outputs.available == 'true'
-        continue-on-error: true
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.WORKFLOW_BOT_APP_ID }}
-          private-key: ${{ secrets.WORKFLOW_BOT_APP_PRIVATE_KEY }}
-          owner: avo-hq
-          repositories: |
-            avo
-            workspace
 
       # Package path: the payload this run just built names every issue the
       # range's PRs closed. `ws announce` is idempotent on the event id — the
