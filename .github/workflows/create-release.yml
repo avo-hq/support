@@ -66,8 +66,6 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         if: steps.detect.outputs.package != ''
-        with:
-          ruby-version-file: .ruby-version
 
       # `ws` vendors its only dependencies, so no bundler and no gem installs.
       # The event id is the tagged commit: `ws release` commits once and tags
@@ -188,7 +186,7 @@ jobs:
       - uses: ruby/setup-ruby@v1
         if: steps.ws.outcome == 'success'
         with:
-          ruby-version-file: .workspace/.ruby-version
+          working-directory: .workspace
 
       # Written to its own file first, so a failure leaves the drafter's body whole rather than half-appended.
       - name: Add the dependency changes to the body
