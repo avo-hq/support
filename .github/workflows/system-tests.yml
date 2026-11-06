@@ -7,6 +7,11 @@ on:
         description: "Necessary avo repos for testing"
         required: false
         type: string
+      AVO_CORE_REPOSITORY:
+        description: "Repository to clone Avo core from"
+        required: false
+        type: string
+        default: "avo-hq/avo"
       AVO_FALLBACK_BRANCH:
         description: "Branch to fallback"
         required: false
@@ -46,7 +51,7 @@ jobs:
         rails:
           - "8.0"
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
 
     env:
@@ -108,15 +113,20 @@ jobs:
 
             # Set GitHub repository path
             gh_repo="avo-hq/$repo"
+            [ "$repo" = "avo" ] && gh_repo="${{ inputs.AVO_CORE_REPOSITORY }}"
             path="./../$repo"
 
             # Check if the branch exists
             if gh api repos/$gh_repo/branches/${{ github.head_ref }} --silent; then
               echo "Branch ${{ github.head_ref }} exists, checking out..."
               branch_ref="${{ github.head_ref }}"
-            else
+            elif gh api repos/$gh_repo/branches/${{ inputs.AVO_FALLBACK_BRANCH }} --silent; then
               echo "Branch ${{ github.head_ref }} not found, defaulting to ${{ inputs.AVO_FALLBACK_BRANCH }}..."
               branch_ref=${{ inputs.AVO_FALLBACK_BRANCH }}
+            else
+              # Avo 3 core lives on 3.x while its paid packages stay on their default branch.
+              echo "Branch ${{ inputs.AVO_FALLBACK_BRANCH }} not found either, using the default branch..."
+              branch_ref=$(gh api repos/$gh_repo --jq .default_branch)
             fi
 
             # Clone the repo
