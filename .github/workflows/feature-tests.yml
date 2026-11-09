@@ -7,11 +7,6 @@ on:
         description: "Necessary avo repos for testing"
         required: false
         type: string
-      AVO_CORE_REPOSITORY:
-        description: "Repository to clone Avo core from"
-        required: false
-        type: string
-        default: "avo-hq/avo"
       AVO_FALLBACK_BRANCH:
         description: "Branch to fallback"
         required: false
@@ -114,7 +109,6 @@ jobs:
 
           # Set GitHub repository path
           gh_repo="avo-hq/$repo"
-          [ "$repo" = "avo" ] && gh_repo="${{ inputs.AVO_CORE_REPOSITORY }}"
           path="./../$repo"
 
           # Check if the branch exists
